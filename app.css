@@ -20,6 +20,10 @@
 
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
+
+/* Author display rules override the UA [hidden] rule, so restate it. */
+[hidden]{display:none!important}
+
 body{
   background:var(--paper);
   color:var(--ink);
@@ -45,6 +49,8 @@ body{
   padding:14px 12px 12px;
   background:var(--ink);color:#fff;
 }
+.topbar > *{max-width:560px}
+.topbar{justify-content:center}
 .topbar .eyebrow{color:#8FB0BD}
 .monthbox{flex:1;text-align:center;min-width:0}
 .monthbox h1{margin:2px 0 0;font-size:19px;font-weight:600;letter-spacing:-.01em}
@@ -57,7 +63,8 @@ body{
 .stepper[hidden]{display:none}
 
 /* ---------------- layout ---------------- */
-main{padding:12px;display:flex;flex-direction:column;gap:12px}
+main{padding:12px;display:flex;flex-direction:column;gap:12px;
+  max-width:560px;margin:0 auto}
 .screen{display:flex;flex-direction:column;gap:12px}
 .card{
   background:var(--card);
@@ -290,6 +297,10 @@ button.danger{
   position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;
   background:var(--card);border-top:1px solid var(--line);
   padding-bottom:env(safe-area-inset-bottom);
+}
+@media (min-width:600px){
+  .tabs{left:50%;transform:translateX(-50%);width:560px;border-left:1px solid var(--line);border-right:1px solid var(--line)}
+  .toast{left:50%;transform:translateX(-50%);width:536px;right:auto}
 }
 .tab{
   flex:1;padding:15px 4px;border:none;background:transparent;
