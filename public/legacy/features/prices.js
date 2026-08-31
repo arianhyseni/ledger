@@ -41,9 +41,9 @@ async function saveProduct(e) {
 
 async function deleteProduct(id) {
   const rows = await liveWhere('prices', 'product_id', id);
-  if (!confirm(rows.length
+  if (!await appConfirm(rows.length
       ? `Delete this product and its ${rows.length} price records?`
-      : 'Delete this product?')) return;
+      : 'Delete this product?', { okLabel: 'Delete', danger: true })) return;
 
   const product = await db.products.get(id);
   if (product) await db.products.put(stamp({ ...product, deleted: 1 }));

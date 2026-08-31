@@ -16,7 +16,7 @@
 
 <!-- ============ AUTH ============ -->
 <section class="screen auth" id="screen-auth" hidden>
-  <div class="authbox">
+  <div class="authbox" id="authBox">
     <div class="brand">
       <span class="eyebrow">TillRoll</span>
       <h1 id="authTitle">Sign in</h1>
@@ -40,6 +40,24 @@
 
     <p class="authmsg" id="authMsg" hidden></p>
     <button class="linkbtn" id="authToggle">No account? Create one</button>
+  </div>
+
+  <div class="authbox" id="mfaBox" hidden>
+    <div class="brand">
+      <span class="eyebrow">TillRoll</span>
+      <h1>Enter your code</h1>
+    </div>
+
+    <form class="form" id="mfaForm" autocomplete="off">
+      <div class="field">
+        <label for="mfaCode">6-digit code</label>
+        <input type="text" id="mfaCode" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" required>
+      </div>
+      <button type="submit" class="primary" id="mfaSubmit">Verify</button>
+    </form>
+
+    <p class="authmsg" id="mfaMsg" hidden></p>
+    <button class="linkbtn" id="mfaCancel">Cancel and sign out</button>
   </div>
 </section>
 
@@ -159,6 +177,9 @@
         <label for="prodSearch" class="eyebrow">Find product</label>
         <input type="search" id="prodSearch" placeholder="Type a name or barcode">
       </div>
+      <button class="iconbtn" id="scanBtn" type="button" aria-label="Scan a barcode" title="Scan a barcode">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 3.75H6A2.25 2.25 0 0 0 3.75 6v1.5M16.5 3.75H18A2.25 2.25 0 0 1 20.25 6v1.5m0 9V18A2.25 2.25 0 0 1 18 20.25h-1.5m-9 0H6A2.25 2.25 0 0 1 3.75 18v-1.5M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>
+      </button>
       <button class="ghost" id="toggleNewProduct" type="button">+ New</button>
     </div>
   </div>
@@ -229,21 +250,30 @@
       </div>
     </div>
 
-    <details class="pwbox">
-      <summary>Change password</summary>
-      <div class="field">
-        <label for="pw1">New password</label>
-        <input type="password" id="pw1" minlength="6" autocomplete="new-password">
+    <div class="pwbox">
+      <div class="row bottom">
+        <button class="pwtoggle" id="pwToggle" type="button" aria-expanded="false" aria-controls="pwFields">Change password</button>
+        <button class="linkdanger" id="signOutBtn" type="button">Sign out</button>
       </div>
-      <div class="field">
-        <label for="pw2">Repeat it</label>
-        <input type="password" id="pw2" minlength="6" autocomplete="new-password">
-      </div>
-      <button class="ghost" id="changePw" type="button">Update password</button>
-      <p class="hint" id="pwMsg" hidden></p>
-    </details>
 
-    <button class="linkdanger" id="signOutBtn" type="button">Sign out</button>
+      <div class="form pwfields" id="pwFields" hidden>
+        <div class="field">
+          <label for="pw1">New password</label>
+          <input type="password" id="pw1" minlength="6" autocomplete="new-password">
+        </div>
+        <div class="field">
+          <label for="pw2">Repeat it</label>
+          <input type="password" id="pw2" minlength="6" autocomplete="new-password">
+        </div>
+        <button class="ghost" id="changePw" type="button">Update password</button>
+        <p class="hint" id="pwMsg" hidden></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="mfaCard" hidden>
+    <span class="eyebrow">Two-factor authentication</span>
+    <div id="mfaBody"></div>
   </div>
 
   <div class="card form">
@@ -251,7 +281,20 @@
     <div class="row">
       <div class="field grow">
         <label for="setCurrency">Currency symbol</label>
-        <input type="text" id="setCurrency" maxlength="3" placeholder="&euro;">
+        <select id="setCurrency" data-fancy>
+          <option value="&euro;">&euro; Euro</option>
+          <option value="$">$ US Dollar</option>
+          <option value="&pound;">&pound; British Pound</option>
+          <option value="&yen;">&yen; Yen / Yuan</option>
+          <option value="&#8377;">&#8377; Indian Rupee</option>
+          <option value="&#8378;">&#8378; Turkish Lira</option>
+          <option value="&#8381;">&#8381; Russian Ruble</option>
+          <option value="&#8361;">&#8361; Korean Won</option>
+          <option value="CHF">CHF Swiss Franc</option>
+          <option value="kr">kr Krona / Krone</option>
+          <option value="z&#322;">z&#322; Polish Z&#322;oty</option>
+          <option value="R$">R$ Brazilian Real</option>
+        </select>
       </div>
       <div class="field grow">
         <label for="setTarget">Savings target (%)</label>
@@ -305,12 +348,32 @@
 
 </main>
 
+<div class="dialog" id="dialogOverlay" hidden>
+  <div class="dialogbox">
+    <p id="dialogMessage"></p>
+    <div class="field" id="dialogInputField" hidden>
+      <input type="text" id="dialogInput">
+    </div>
+    <div class="row">
+      <button class="ghost grow" id="dialogCancel" type="button">Cancel</button>
+      <button class="primary grow" id="dialogOk" type="button">OK</button>
+    </div>
+  </div>
+</div>
+
 <nav class="tabs" id="tabs" hidden>
   <button class="tab active" data-screen="expenses">Expenses</button>
   <button class="tab" data-screen="prices">Prices</button>
   <button class="tab" data-screen="insights">Insights</button>
   <button class="tab" data-screen="settings">Settings</button>
 </nav>
+
+<div class="scanner" id="scannerView" hidden>
+  <video id="scannerVideo" autoplay playsinline muted></video>
+  <div class="scanner-frame" aria-hidden="true"></div>
+  <p class="scanner-hint" id="scannerHint">Point the camera at a barcode</p>
+  <button class="scanner-close" id="scannerClose" type="button">Cancel</button>
+</div>
 
 <div class="viewer" id="viewer" hidden>
   <img id="viewerImg" alt="Receipt">

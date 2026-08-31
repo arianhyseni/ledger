@@ -51,7 +51,7 @@ function initSettings() {
 /* ---------- categories & stores ---------- */
 
 async function renameCategory(id, current) {
-  const name = prompt('Rename category', current);
+  const name = await appPrompt('Rename category', current);
   if (!name || !name.trim()) return;
   const row = await db.categories.get(id);
   await db.categories.put(stamp({ ...row, name: name.trim() }));
@@ -71,7 +71,7 @@ async function removeCategory(id) {
 }
 
 async function renameStore(id, current) {
-  const name = prompt('Rename store', current);
+  const name = await appPrompt('Rename store', current);
   if (!name || !name.trim()) return;
   const row = await db.stores.get(id);
   await db.stores.put(stamp({ ...row, name: name.trim() }));
@@ -107,7 +107,7 @@ async function doExport() {
 async function doImport(e) {
   const file = e.target.files[0];
   if (!file) return;
-  if (!confirm('Importing replaces everything currently on this device. Continue?')) {
+  if (!await appConfirm('Importing replaces everything currently on this device. Continue?', { okLabel: 'Import' })) {
     e.target.value = ''; return;
   }
   try {
@@ -127,8 +127,8 @@ async function doImport(e) {
 /* ---------- delete everything ---------- */
 
 async function deleteAllData() {
-  if (!confirm('Delete every expense, product, price and setting?')) return;
-  if (!confirm('This removes them from the server as well as this device, and cannot be undone. Continue?')) return;
+  if (!await appConfirm('Delete every expense, product, price and setting?', { okLabel: 'Delete everything', danger: true })) return;
+  if (!await appConfirm('This removes them from the server as well as this device, and cannot be undone. Continue?', { okLabel: 'Delete permanently', danger: true })) return;
 
   if (CLOUD_ENABLED && currentUser) {
     if (!navigator.onLine) {
@@ -162,13 +162,136 @@ async function deleteAllData() {
   toast('Everything deleted.');
 }
 
+/* ---------- two-factor authentication ---------- */
+
+let mfaEnrollment = null;   // { factorId, qrCode, secret } while mid-setup
+
+async function startMfaEnroll() {
+  // A previous setup attempt that was never verified (tab closed
+  // mid-setup, etc.) leaves an orphaned factor behind — Supabase
+  // refuses to enroll a new one with a colliding friendly name until
+  // it's cleared, so sweep those up first.
+  const { data: existing } = await sb.auth.mfa.listFactors();
+  const stray = existing && existing.totp ? existing.totp.filter(f => f.status !== 'verified') : [];
+  for (const f of stray) await sb.auth.mfa.unenroll({ factorId: f.id }).catch(() => {});
+
+  const { data, error } = await sb.auth.mfa.enroll({
+    factorType: 'totp',
+    friendlyName: 'authenticator-' + Date.now()
+  });
+  if (error) { toast('Could not start setup: ' + error.message); return; }
+  mfaEnrollment = { factorId: data.id, uri: data.totp.uri, secret: data.totp.secret };
+  await renderMfaCard();
+}
+
+async function cancelMfaEnroll() {
+  if (mfaEnrollment) {
+    await sb.auth.mfa.unenroll({ factorId: mfaEnrollment.factorId }).catch(() => {});
+  }
+  mfaEnrollment = null;
+  await renderMfaCard();
+}
+
+async function confirmMfaEnroll() {
+  const code = $('mfaEnrollCode').value.trim();
+  if (!/^\d{6}$/.test(code)) { toast('Enter the 6-digit code from your authenticator app.'); return; }
+
+  $('mfaEnrollVerify').disabled = true;
+  try {
+    const { error } = await sb.auth.mfa.challengeAndVerify({ factorId: mfaEnrollment.factorId, code });
+    if (error) throw error;
+    mfaEnrollment = null;
+    await renderMfaCard();
+    toast('Two-factor authentication is on.');
+  } catch (err) {
+    toast(friendlyAuthError(err));
+  } finally {
+    const btn = $('mfaEnrollVerify');
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function disableMfa(factorId) {
+  if (!await appConfirm('Turn off two-factor authentication? Signing in will only need your password.', { okLabel: 'Turn off', danger: true })) return;
+  const { error } = await sb.auth.mfa.unenroll({ factorId });
+  if (error) { toast('Could not disable: ' + error.message); return; }
+  await renderMfaCard();
+  toast('Two-factor authentication is off.');
+}
+
+async function renderMfaCard() {
+  if (!CLOUD_ENABLED || !currentUser) { $('mfaCard').hidden = true; return; }
+  $('mfaCard').hidden = false;
+
+  const body = $('mfaBody');
+
+  if (mfaEnrollment) {
+    body.innerHTML = `
+      <p class="hint">Scan this with your authenticator app (Google Authenticator, Authy,
+        1Password, etc.), then enter the 6-digit code it shows.</p>
+      <div class="qrcode" role="img" aria-label="Authenticator setup QR code">${totpQrSvg(mfaEnrollment.uri)}</div>
+      <p class="hint">Can&rsquo;t scan it? Enter this key manually instead:</p>
+      <span class="mfa-secret">${escapeHtml(mfaEnrollment.secret)}</span>
+      <div class="form mfa-enroll-form">
+        <div class="field">
+          <label for="mfaEnrollCode">6-digit code</label>
+          <input type="text" id="mfaEnrollCode" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code">
+        </div>
+        <div class="row">
+          <button class="ghost grow" type="button" onclick="cancelMfaEnroll()">Cancel</button>
+          <button class="primary grow" type="button" id="mfaEnrollVerify" onclick="confirmMfaEnroll()">Verify &amp; enable</button>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const { data } = await sb.auth.mfa.listFactors();
+  const verified = data && data.totp && data.totp.find(f => f.status === 'verified');
+  const shieldIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l6.5 2.6v5c0 4.4-2.8 7.9-6.5 9.4-3.7-1.5-6.5-5-6.5-9.4v-5L12 3.5z"/><path d="M9 12.2l2 2 4-4.4"/></svg>`;
+
+  body.innerHTML = verified ? `
+      <div class="mfarow">
+        <span class="mfaicon on">${shieldIcon}</span>
+        <div class="mfameta">
+          <div class="cat">Two-factor authentication is on</div>
+          <div class="sub">Signing in needs your password and a code from your authenticator app.</div>
+        </div>
+      </div>
+      <button class="linkdanger" type="button" onclick="disableMfa('${verified.id}')">Turn off two-factor authentication</button>
+    ` : `
+      <div class="mfarow">
+        <span class="mfaicon">${shieldIcon}</span>
+        <div class="mfameta">
+          <div class="cat">Two-factor authentication is off</div>
+          <div class="sub">Add a code from an authenticator app as a second step when signing in.</div>
+        </div>
+      </div>
+      <button class="primary" type="button" onclick="startMfaEnroll()">Enable two-factor authentication</button>`;
+}
+
+// If the stored symbol isn't one of the preset options (an older
+// free-typed value, say), add it so the dropdown still shows what's
+// actually set instead of silently falling back to the first option.
+function setCurrencySelect(value) {
+  const sel = $('setCurrency');
+  const known = Array.from(sel.options).some(o => o.value === value);
+  if (!known) {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = value + ' (current)';
+    sel.insertBefore(opt, sel.firstChild);
+  }
+  sel.value = value;
+}
+
 /* ---------- render ---------- */
 
 async function renderSettings() {
-  $('setCurrency').value = window.CURRENCY;
+  setCurrencySelect(window.CURRENCY);
   $('setTarget').value = window.SAVINGS_TARGET;
 
   await renderAccount();
+  await renderMfaCard();
   if (CLOUD_ENABLED && currentUser) await setSyncStatus('ok');
 
   const cats   = (await live('categories')).sort((a, b) => a.name.localeCompare(b.name));

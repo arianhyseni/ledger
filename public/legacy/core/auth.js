@@ -7,6 +7,7 @@
 
 let sb = null;          // Supabase client
 let currentUser = null;
+let mfaFactorId = null; // factor being challenged at sign-in, if any
 
 function initAuth() {
   if (!CLOUD_ENABLED) return;
@@ -21,6 +22,15 @@ function initAuth() {
   $('topSignOut').onclick = signOut;
   $('saveProfile').onclick = saveProfileName;
   $('changePw').onclick = changePassword;
+  $('mfaForm').onsubmit = submitMfa;
+  $('mfaCancel').onclick = cancelMfaChallenge;
+
+  $('pwToggle').onclick = () => {
+    const opening = $('pwFields').hidden;
+    $('pwFields').hidden = !opening;
+    $('pwToggle').setAttribute('aria-expanded', String(opening));
+    if (opening) $('pw1').focus();
+  };
 }
 
 let authMode = 'signin';
@@ -72,11 +82,11 @@ async function submitAuth(e) {
         toggleAuthMode();
         return;
       }
-      await onSignedIn(data.session.user);
+      await afterPasswordAuth(data.session.user);
     } else {
       const { data, error } = await sb.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      await onSignedIn(data.session.user);
+      await afterPasswordAuth(data.session.user);
     }
   } catch (err) {
     authMsg(friendlyAuthError(err), 'bad');
@@ -92,6 +102,7 @@ function friendlyAuthError(err) {
   if (m.includes('already registered')) return 'That email already has an account.';
   if (m.includes('password')) return 'Password must be at least 6 characters.';
   if (m.includes('fetch') || m.includes('network')) return 'No connection. Try again when you are online.';
+  if (m.includes('totp') || m.includes('mfa') || m.includes('factor')) return 'Wrong code — try again.';
   return err.message || 'Something went wrong.';
 }
 
@@ -122,8 +133,76 @@ async function onSignedIn(user) {
   if (CLOUD_ENABLED && synced) scheduleSync(1000);
 }
 
+// After a password check succeeds, this account may still require a
+// second factor before it is actually considered signed in.
+async function afterPasswordAuth(user) {
+  const { data } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (data && data.nextLevel === 'aal2' && data.nextLevel !== data.currentLevel) {
+    await promptMfaChallenge();
+  } else {
+    await onSignedIn(user);
+  }
+}
+
+async function promptMfaChallenge() {
+  const { data, error } = await sb.auth.mfa.listFactors();
+  const factor = !error && data && data.totp && data.totp[0];
+  if (!factor) {
+    authMsg('Two-factor authentication is required on this account but no method could be found. Contact support.', 'bad');
+    return;
+  }
+  mfaFactorId = factor.id;
+
+  showApp(false);
+  $('authBox').hidden = true;
+  $('mfaBox').hidden = false;
+  $('mfaCode').value = '';
+  $('mfaCode').focus();
+}
+
+async function submitMfa(e) {
+  e.preventDefault();
+
+  const code = $('mfaCode').value.trim();
+  if (!/^\d{6}$/.test(code)) { mfaMsg('Enter the 6-digit code from your authenticator app.', 'bad'); return; }
+
+  $('mfaSubmit').disabled = true;
+  mfaMsg('Verifying…');
+
+  try {
+    const { error } = await sb.auth.mfa.challengeAndVerify({ factorId: mfaFactorId, code });
+    if (error) throw error;
+
+    mfaFactorId = null;
+    $('mfaBox').hidden = true;
+    $('authBox').hidden = false;
+    mfaMsg('');
+
+    const { data } = await sb.auth.getSession();
+    await onSignedIn(data.session.user);
+  } catch (err) {
+    mfaMsg(friendlyAuthError(err), 'bad');
+  } finally {
+    $('mfaSubmit').disabled = false;
+  }
+}
+
+function mfaMsg(text, tone) {
+  const el = $('mfaMsg');
+  el.textContent = text || '';
+  el.hidden = !text;
+  el.className = 'authmsg ' + (tone || '');
+}
+
+async function cancelMfaChallenge() {
+  if (!await appConfirm('Stop signing in?', { okLabel: 'Stop', danger: true })) return;
+  await sb.auth.signOut();
+  mfaFactorId = null;
+  location.reload();
+}
+
 async function signOut() {
-  if (!confirm('Sign out? Local data on this device will be cleared — it stays safe in the cloud.')) return;
+  if (!await appConfirm('Sign out? Local data on this device will be cleared — it stays safe in the cloud.', { okLabel: 'Sign out', danger: true })) return;
   await sb.auth.signOut();
   await wipeLocal();
   currentUser = null;
@@ -133,11 +212,16 @@ async function signOut() {
 async function restoreSession() {
   if (!CLOUD_ENABLED) return false;
   const { data } = await sb.auth.getSession();
-  if (data.session) {
-    await onSignedIn(data.session.user);
+  if (!data.session) return false;
+
+  const { data: aal } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (aal && aal.nextLevel === 'aal2' && aal.nextLevel !== aal.currentLevel) {
+    await promptMfaChallenge();
     return true;
   }
-  return false;
+
+  await onSignedIn(data.session.user);
+  return true;
 }
 
 function showApp(visible) {

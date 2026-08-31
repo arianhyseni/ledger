@@ -111,7 +111,7 @@ async function saveExpense(e) {
 }
 
 async function deleteExpense(id) {
-  if (!confirm('Delete this expense?')) return;
+  if (!await appConfirm('Delete this expense?', { okLabel: 'Delete', danger: true })) return;
 
   const row = await db.expenses.get(id);
   if (!row) return;
