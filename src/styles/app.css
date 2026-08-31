@@ -27,7 +27,7 @@
 /* Light values are the defaults; the dark block below redefines
    the same custom-property names, so every utility built from them
    (bg-paper, text-ink, shadow-card, …) flips automatically with the
-   system color scheme — no dark: variants needed anywhere. */
+   selected theme without screen-specific dark variants. */
 @theme {
   --color-paper: #E7EAEE;
   --color-card: #FFFFFF;
@@ -54,14 +54,19 @@
   --spacing-tap: 52px;
 
   --font-mono: ui-monospace, "Roboto Mono", "DejaVu Sans Mono", monospace;
-  --font-sans: system-ui, -apple-system, "Roboto", "Segoe UI", sans-serif;
+  --font-sans: "Inter", system-ui, -apple-system, "Roboto", "Segoe UI", sans-serif;
+
+  /* Type-role weights (self-hosted Inter, imported in src/main.js) */
+  --font-weight-heading: 600;    /* SemiBold */
+  --font-weight-subheading: 500; /* Medium */
+  --font-weight-body: 400;       /* Regular */
+  --font-weight-label: 500;      /* Medium */
 
   --shadow-card: 0 1px 2px rgba(17,24,32,.07), 0 1px 10px rgba(17,24,32,.05);
   --shadow-up: 0 -2px 14px rgba(17,24,32,.10);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+:root[data-theme="dark"] {
     --color-paper: #0D1217;
     --color-card: #161D25;
     --color-raise: #1E262F;
@@ -84,7 +89,6 @@
 
     --shadow-card: 0 1px 2px rgba(0,0,0,.5);
     --shadow-up: 0 -2px 16px rgba(0,0,0,.55);
-  }
 }
 
 [hidden] { display: none !important; }
@@ -93,6 +97,7 @@ body {
   @apply bg-paper text-ink font-sans pb-24 text-pretty;
   margin: 0; padding-top: 0; padding-left: 0; padding-right: 0;
   font-size: 17px; line-height: 1.4;
+  font-weight: var(--font-weight-body);
   -webkit-tap-highlight-color: transparent;
   -webkit-text-size-adjust: 100%;
 }
@@ -100,7 +105,8 @@ html { margin: 0; }
 
 /* ---------------- primitives ---------------- */
 .eyebrow {
-  @apply block font-sans text-[12px] font-bold tracking-[.09em] uppercase text-muted;
+  @apply block font-sans text-[12px] tracking-[.09em] uppercase text-muted;
+  font-weight: var(--font-weight-label);
 }
 .num { @apply font-mono tabular-nums tracking-[-.02em]; }
 .dim { @apply text-muted; }
@@ -117,14 +123,21 @@ html { margin: 0; }
   @apply sticky top-0 z-5 flex items-center gap-1.5 bg-card text-ink border-b border-line;
   /* Keeps header content in the same 560px column as <main>, or the
      month label drifts left on wide screens. */
-  padding: 10px max(10px, calc(50% - 280px));
+  padding: 6px max(8px, calc(50% - 280px));
 }
 .topbar .eyebrow { @apply text-muted text-[11px]; }
-.navgroup { @apply flex items-center gap-0.5 flex-1 min-w-0; }
+.navgroup { @apply flex items-center justify-center gap-0 flex-1 min-w-0; }
 .tools { @apply flex items-center gap-1.5 flex-none; }
 
-.monthbox { @apply flex-1 text-center min-w-0; }
-.monthbox h1 { @apply mt-px text-[21px] font-bold tracking-[-.02em] whitespace-nowrap overflow-hidden text-ellipsis; }
+.monthbox {
+  @apply flex-none text-center min-w-0;
+  width: clamp(112px, 30vw, 150px);
+}
+.topbar:not(.monthly) .monthbox { width: auto; max-width: 190px; }
+.monthbox h1 {
+  @apply mt-px text-[21px] tracking-[-.02em] whitespace-nowrap overflow-hidden text-ellipsis;
+  font-weight: var(--font-weight-heading);
+}
 
 .stepper {
   @apply w-12 h-12 flex-none flex items-center justify-center border-none rounded-lg bg-transparent text-accent font-sans;
@@ -138,6 +151,7 @@ html { margin: 0; }
 .stepper[hidden] { display: none; }
 .stepper.dark { @apply text-accent border-none; }
 .stepper.dark:active { @apply bg-accent-wash; }
+.topbar .stepper { @apply w-10 h-10; }
 
 .iconbtn {
   @apply w-12 h-12 flex-none flex items-center justify-center border-none rounded-lg bg-raise text-accent p-0;
@@ -147,6 +161,43 @@ html { margin: 0; }
   @apply w-[21px] h-[21px];
   fill: none; stroke: currentColor; stroke-width: 1.8;
   stroke-linecap: round; stroke-linejoin: round;
+  transition: transform .15s ease;
+}
+.iconbtn[aria-expanded="true"] svg { @apply rotate-45; }
+
+/* The theme icon cross-fades and rotates while the app surfaces change
+   colour together. Keeping the animation token-based means future screens
+   automatically participate without extra theme-specific styling. */
+.theme-icon .theme-sun,
+.theme-icon .theme-moon {
+  transform-origin: 12px 12px;
+  transition: transform .42s cubic-bezier(.22,1,.36,1), opacity .24s ease;
+}
+:root[data-theme="light"] .theme-sun { opacity: 1; transform: rotate(0deg) scale(1); }
+:root[data-theme="light"] .theme-moon { opacity: 0; transform: rotate(-70deg) scale(.45); }
+:root[data-theme="dark"] .theme-sun { opacity: 0; transform: rotate(70deg) scale(.45); }
+:root[data-theme="dark"] .theme-moon { opacity: 1; transform: rotate(0deg) scale(1); }
+
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+  transition-property: background-color, color, border-color, box-shadow, fill, stroke !important;
+  transition-duration: .38s !important;
+  transition-timing-function: ease !important;
+}
+html.theme-transition .theme-icon .theme-sun,
+html.theme-transition .theme-icon .theme-moon {
+  transition-property: transform, opacity !important;
+  transition-duration: .42s, .24s !important;
+  transition-timing-function: cubic-bezier(.22,1,.36,1), ease !important;
+}
+
+@media (max-width: 420px) {
+  .topbar { @apply gap-0; }
+  .topbar .stepper { width: 36px; height: 40px; }
+  .topbar.monthly .monthbox { width: 96px; }
+  .topbar .tools { @apply gap-1; }
+  .topbar .iconbtn { @apply w-10 h-10; }
 }
 
 /* ---------------- layout ---------------- */
@@ -200,7 +251,10 @@ main { @apply p-3 flex flex-col gap-3 max-w-[560px] mx-auto; }
 
 .metrics { @apply grid grid-cols-3 gap-1 mt-4 pt-3.5 border-t border-hair; }
 .metrics.four { @apply grid-cols-4 border-t-0 pt-0.5 mt-3; }
-.metrics dt { @apply font-sans text-[11px] font-bold tracking-[.07em] uppercase text-muted; }
+.metrics dt {
+  @apply font-sans text-[11px] tracking-[.07em] uppercase text-muted;
+  font-weight: var(--font-weight-label);
+}
 .metrics dd { @apply mt-1 font-mono font-bold tabular-nums; font-size: 20px; letter-spacing: -.035em; }
 .metrics.four dd { @apply text-[17px]; }
 dd.good { @apply text-good; }
@@ -213,7 +267,7 @@ dd.bad { @apply text-bad; }
 .row.bottom { @apply items-end justify-between; }
 .field { @apply flex flex-col gap-1.5 min-w-0; }
 .field.grow { @apply flex-1; }
-.field label { @apply text-[13px] font-semibold text-muted; }
+.field label { @apply text-[13px] text-muted; font-weight: var(--font-weight-label); }
 
 .field input, .field select, .priceadd input, .priceadd select {
   @apply w-full h-tap px-3 border border-transparent rounded-md bg-raise text-ink font-sans text-[17px];
@@ -256,13 +310,15 @@ dd.bad { @apply text-bad; }
 .fancy-select-trigger:focus-visible { outline: 3px solid var(--color-accent); outline-offset: 2px; }
 
 .fancy-select-panel {
-  @apply absolute left-0 right-0 z-10 mt-1.5 bg-card rounded-md overflow-y-auto border-none;
+  /* position/left/width are set from JS (positionFloatingPanel), computed
+     from the trigger's real screen position so the panel isn't clipped by
+     an ancestor's overflow: hidden (e.g. .daygroup) the way position:
+     absolute here would be. */
+  @apply z-10 bg-card rounded-md overflow-y-auto border-none;
   max-height: 260px;
   box-shadow: 0 12px 30px rgba(9,13,17,.18), 0 2px 8px rgba(9,13,17,.1);
 }
-@media (prefers-color-scheme: dark) {
-  .fancy-select-panel { box-shadow: 0 12px 30px rgba(0,0,0,.5), 0 2px 8px rgba(0,0,0,.4); }
-}
+:root[data-theme="dark"] .fancy-select-panel { box-shadow: 0 12px 30px rgba(0,0,0,.5), 0 2px 8px rgba(0,0,0,.4); }
 .fancy-select-option {
   @apply flex items-center justify-between gap-2 px-3.5 text-[16px] text-ink cursor-pointer;
   min-height: 46px;
@@ -271,6 +327,52 @@ dd.bad { @apply text-bad; }
 .fancy-select-option.sel::after { content: "\2713"; font-weight: 700; }
 .fancy-select-option.active { @apply bg-raise; }
 .fancy-select-option.sel.active { @apply bg-accent-wash; }
+
+/* ---------------- fancy date picker ---------------- */
+.fancy-date { @apply relative w-full; }
+.fancy-date-native { @apply hidden; }
+/* A calendar icon rotated 180deg reads as broken, not "open" — the
+   shared trigger's chevron-flip is meant for the dropdown, not this. */
+.fancy-date-trigger[aria-expanded="true"] svg { transform: none; @apply text-accent; }
+
+.fancy-date-panel {
+  /* position/left/top/width are set from JS — see .fancy-select-panel. */
+  @apply z-10 bg-card rounded-md p-3.5 border-none;
+  width: 300px; max-width: 88vw;
+  box-shadow: 0 12px 30px rgba(9,13,17,.18), 0 2px 8px rgba(9,13,17,.1);
+}
+:root[data-theme="dark"] .fancy-date-panel { box-shadow: 0 12px 30px rgba(0,0,0,.5), 0 2px 8px rgba(0,0,0,.4); }
+.fancy-date-head {
+  @apply grid items-center gap-2;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+}
+.fancy-date-month { @apply min-w-0 text-center text-[15px] font-semibold text-ink whitespace-nowrap; }
+.fancy-date-nav {
+  @apply w-9 h-9 flex-none flex items-center justify-center border-none rounded-lg bg-transparent text-accent p-0;
+}
+.fancy-date-nav:active { @apply bg-accent-wash; }
+.fancy-date-nav svg {
+  @apply w-[17px] h-[17px];
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.fancy-date-weekdays {
+  @apply grid grid-cols-7 gap-1 mt-3 mb-1.5 text-center font-sans text-[11px] font-bold tracking-[.04em] uppercase text-muted;
+}
+.fancy-date-grid { @apply grid grid-cols-7 gap-1; }
+.fancy-date-cell {
+  @apply aspect-square flex items-center justify-center border-none rounded-lg bg-transparent text-ink font-mono tabular-nums text-[14.5px];
+}
+.fancy-date-cell.dim { @apply text-muted opacity-50; }
+.fancy-date-cell:active { @apply bg-raise; }
+.fancy-date-cell.today { @apply bg-accent-wash text-accent-ink font-bold; }
+.fancy-date-cell.sel { @apply bg-accent text-white font-bold; }
+.fancy-date-foot { @apply mt-3 pt-3 border-t border-hair; }
+.fancy-date-today {
+  @apply w-full border-none bg-raise rounded-md text-accent font-semibold text-[14px];
+  min-height: 40px;
+}
+.fancy-date-today:active { @apply bg-accent-wash; }
 
 .shoot {
   @apply flex-1 flex items-center justify-center px-3 border-[1.5px] border-dashed border-line rounded-md text-[14px] font-semibold text-muted text-center;
@@ -300,8 +402,13 @@ button.danger:active { @apply border-bad; }
 button.danger.grow { @apply flex-1; }
 
 .linkdanger {
-  @apply mt-3 border-none bg-transparent text-bad font-semibold p-0 text-left;
+  @apply mt-3 inline-flex items-center gap-1.5 border-none bg-transparent text-bad font-semibold p-0 text-left;
   min-height: 44px; font-size: 15px;
+}
+.linkdanger svg {
+  @apply w-[17px] h-[17px] flex-none;
+  fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round;
 }
 
 /* ---------------- expense list ---------------- */
@@ -320,7 +427,7 @@ button.danger.grow { @apply flex-1; }
 .entry:last-child { @apply border-b-0; }
 .entry:active { @apply bg-raise; }
 .entry .meta, .prow .meta { @apply flex-1 min-w-0 text-left; }
-.cat { @apply text-[17px] font-semibold tracking-[-.01em]; }
+.cat { @apply text-[17px] tracking-[-.01em]; font-weight: var(--font-weight-subheading); }
 .sub { @apply mt-0.5 text-[13.5px] text-muted whitespace-nowrap overflow-hidden text-ellipsis; }
 .amt { @apply font-mono font-bold tabular-nums; font-size: 19px; letter-spacing: -.035em; }
 
@@ -329,8 +436,12 @@ button.danger.grow { @apply flex-1; }
   min-height: 34px;
 }
 .del {
-  @apply w-11 h-11 flex-none border-none bg-transparent text-muted p-0 rounded-xl;
-  font-size: 22px; line-height: 1;
+  @apply w-11 h-11 flex-none flex items-center justify-center border-none bg-transparent text-muted p-0 rounded-xl;
+}
+.del svg {
+  @apply w-[19px] h-[19px];
+  fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round;
 }
 .del:active { @apply bg-bad-wash text-bad; }
 
@@ -346,9 +457,15 @@ button.danger.grow { @apply flex-1; }
 }
 .prow:active { @apply bg-raise; }
 .caret {
-  @apply w-10 h-10 flex-none flex items-center justify-center rounded-full bg-raise font-sans text-accent;
-  font-size: 19px;
+  @apply w-10 h-10 flex-none flex items-center justify-center rounded-full bg-raise text-accent;
 }
+.caret svg {
+  @apply w-[18px] h-[18px];
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+  transition: transform .15s ease;
+}
+.caret.open svg { @apply rotate-180; }
 .pdetail { @apply border-t border-hair; padding: 2px 14px 16px; }
 
 .ptable { @apply w-full border-collapse mt-3 text-[15px]; }
@@ -378,7 +495,20 @@ button.danger.grow { @apply flex-1; }
   accent-color: var(--color-accent);
 }
 .priceadd input[type="checkbox"]:focus { box-shadow: none; background: none; }
-.priceadd button { @apply w-full; }
+.priceactions {
+  @apply col-span-2 flex gap-2.5;
+}
+.priceactions .ghost { @apply flex-1; }
+.priceactions .product-delete {
+  @apply flex-none flex items-center justify-center border border-bad rounded-md bg-bad-wash text-bad p-0;
+  width: var(--spacing-tap); height: var(--spacing-tap);
+}
+.priceactions .product-delete:active { @apply bg-card; }
+.priceactions .product-delete svg {
+  @apply w-5 h-5;
+  fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round;
+}
 
 .phist { @apply mt-3.5 flex flex-col; }
 .phrow {
@@ -513,6 +643,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, label:focus-vis
   outline: 3px solid var(--color-accent); outline-offset: 2px;
 }
 
+button:disabled { @apply opacity-40; cursor: not-allowed; }
+
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
 /* ---------------- boot + auth ---------------- */
@@ -524,7 +656,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, label:focus-vis
 .screen.auth { @apply flex items-center justify-center p-5; min-height: 100vh; }
 .authbox { @apply w-full max-w-[400px] bg-card border-none shadow-card rounded-[18px] p-6; }
 .brand { @apply mb-[22px]; }
-.brand h1 { @apply mt-[5px] text-[26px] font-bold tracking-[-.03em]; }
+.brand h1 { @apply mt-[5px] text-[26px] tracking-[-.03em]; font-weight: var(--font-weight-heading); }
 .authmsg {
   @apply mt-3.5 rounded-xl bg-raise border-none text-ink-2 leading-[1.45];
   padding: 13px 14px; font-size: 15px;
@@ -548,7 +680,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, label:focus-vis
   margin-top: 8vh;
 }
 .yearhead { @apply flex items-center justify-between gap-2.5 text-center mb-4; }
-.yearhead h2 { @apply mt-px text-[22px] font-bold tracking-[-.02em]; }
+.yearhead h2 { @apply mt-px text-[22px] tracking-[-.02em]; font-weight: var(--font-weight-heading); }
 
 .yeargrid { @apply grid grid-cols-4 gap-2; }
 .ycell {
@@ -616,7 +748,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, label:focus-vis
 }
 .mfaicon.on { @apply bg-good-wash text-good; }
 .mfameta { @apply flex-1 min-w-0; }
-.mfameta .cat { @apply text-[17px] font-semibold tracking-[-.01em]; }
+.mfameta .cat { @apply text-[17px] tracking-[-.01em]; font-weight: var(--font-weight-subheading); }
 .mfameta .sub { @apply mt-0.5 text-[13.5px] text-muted leading-[1.45]; }
 
 /* ---------------- confirm / prompt dialog ---------------- */
@@ -628,3 +760,5 @@ button:focus-visible, input:focus-visible, select:focus-visible, label:focus-vis
 .dialogbox p { @apply m-0 text-[15.5px] leading-[1.5] text-ink-2; }
 .dialogbox .field { @apply mt-4; }
 .dialogbox .row { @apply mt-5; }
+.dialogbox .form { @apply mt-4; }
+.dialogbox-head { @apply flex items-center justify-between gap-3 -mt-1 -mr-1; }

@@ -157,7 +157,7 @@ function daysElapsed(month) {
 function monthLabel(month) {
   const [y, m] = month.split('-').map(Number);
   return new Date(y, m - 1, 1)
-    .toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    .toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
 }
 
 function monthShort(month) {
@@ -326,7 +326,7 @@ async function migrateLegacy() {
     await setMeta('legacyMigrated', true);
     return hasData;
   } catch (err) {
-    console.warn('Legacy migration skipped:', err);
+    logError('Legacy migration skipped', err);
     await setMeta('legacyMigrated', true);
     return false;
   }

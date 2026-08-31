@@ -54,6 +54,7 @@ async function syncNow() {
 
   syncing = true;
   await setSyncStatus('syncing');
+  log('Sync starting');
 
   try {
     await pushAll();
@@ -61,9 +62,10 @@ async function syncNow() {
     await setMeta('lastSync', now());
     await setSyncStatus('ok');
     await renderActive();
+    log('Sync completed');
     return true;
   } catch (err) {
-    console.warn('Sync failed:', err);
+    logError('Sync failed', err);
     await setSyncStatus('error', err.message || String(err));
     return false;
   } finally {

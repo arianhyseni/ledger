@@ -9,6 +9,7 @@ function initPrices() {
   $('toggleNewProduct').onclick = () => {
     const f = $('productForm');
     f.hidden = !f.hidden;
+    $('toggleNewProduct').setAttribute('aria-expanded', String(!f.hidden));
     if (!f.hidden) $('pName').focus();
   };
   $('productForm').onsubmit = saveProduct;
@@ -223,9 +224,9 @@ async function renderPrices() {
           <div class="phrow">
             <span class="dim">${r.date}</span>
             <span>${escapeHtml(storeName[r.store_id] || '—')}</span>
-            ${r.is_promo ? '<span class="chip">promo</span>' : ''}
+            ${r.is_promo ? '<span class="chip">sale</span>' : ''}
             <span class="num">${fromCents(r.price)}</span>
-            <button class="del" onclick="deletePrice('${r.id}')" aria-label="Delete">&times;</button>
+            <button class="del" onclick="deletePrice('${r.id}')" aria-label="Delete"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg></button>
           </div>`).join('')}
       </div>` : '';
 
@@ -234,8 +235,13 @@ async function renderPrices() {
         <select id="ns_${p.id}">${storeOptions || '<option value="">Add stores in Settings</option>'}</select>
         <input type="number" id="np_${p.id}" inputmode="decimal" step="0.01" placeholder="0.00">
         <input type="date" id="nd_${p.id}" value="${today()}">
-        <label class="promo"><input type="checkbox" id="npr_${p.id}"> promo</label>
-        <button class="ghost" onclick="savePrice('${p.id}')">Record</button>
+        <label class="promo"><input type="checkbox" id="npr_${p.id}"> Sale price</label>
+        <div class="priceactions">
+          <button class="ghost" type="button" onclick="savePrice('${p.id}')">Record</button>
+          <button class="product-delete" type="button" onclick="deleteProduct('${p.id}')" aria-label="Delete product" title="Delete product">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>
+          </button>
+        </div>
       </div>`;
 
     return `
@@ -245,11 +251,13 @@ async function renderPrices() {
             <div class="cat">${escapeHtml(p.name)}</div>
             <div class="sub">${escapeHtml(catName[p.category_id] || 'No category')} \u00B7 ${escapeHtml(p.unit || 'pcs')} \u00B7 ${summary}</div>
           </div>
-          <span class="caret">${open ? '&#8722;' : '+'}</span>
+          <span class="caret${open ? ' open' : ''}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg></span>
         </button>
-        ${open ? `<div class="pdetail">${table}${addForm}${history}
-          <button class="linkdanger" onclick="deleteProduct('${p.id}')">Delete product</button>
-        </div>` : ''}
+        ${open ? `<div class="pdetail">${table}${addForm}${history}</div>` : ''}
       </div>`;
   }).join('');
+
+  // The store/date pickers above were just recreated from scratch —
+  // enhance the fresh elements the same way the static ones at boot got.
+  window.TillRollControls.enhance(list);
 }

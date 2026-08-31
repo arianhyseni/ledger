@@ -119,6 +119,7 @@ async function doImport(e) {
     toast('Backup restored.');
     scheduleSync(500);
   } catch (err) {
+    logError('Backup import failed', err);
     toast('Import failed: ' + err.message);
   }
   e.target.value = '';
@@ -127,8 +128,12 @@ async function doImport(e) {
 /* ---------- delete everything ---------- */
 
 async function deleteAllData() {
-  if (!await appConfirm('Delete every expense, product, price and setting?', { okLabel: 'Delete everything', danger: true })) return;
-  if (!await appConfirm('This removes them from the server as well as this device, and cannot be undone. Continue?', { okLabel: 'Delete permanently', danger: true })) return;
+  const ok = await appConfirmTyped(
+    'Deletes every expense, product, price and setting — from the server and this device. This cannot be undone. Export a backup first if you want to keep a copy. Type DELETE to confirm.',
+    'DELETE',
+    { okLabel: 'Delete everything' }
+  );
+  if (!ok) return;
 
   if (CLOUD_ENABLED && currentUser) {
     if (!navigator.onLine) {
@@ -142,6 +147,7 @@ async function deleteAllData() {
         if (error) throw new Error(table + ': ' + error.message);
       }
     } catch (err) {
+      logError('Server-side delete-all failed', err);
       toast('Server delete failed: ' + err.message + ' — nothing was removed locally.');
       return;
     }
@@ -204,6 +210,7 @@ async function confirmMfaEnroll() {
     await renderMfaCard();
     toast('Two-factor authentication is on.');
   } catch (err) {
+    logError('MFA enrollment verify failed', err);
     toast(friendlyAuthError(err));
   } finally {
     const btn = $('mfaEnrollVerify');

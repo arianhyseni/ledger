@@ -18,19 +18,28 @@ function initAuth() {
 
   $('authForm').onsubmit = submitAuth;
   $('authToggle').onclick = toggleAuthMode;
-  $('signOutBtn').onclick = signOut;
   $('topSignOut').onclick = signOut;
   $('saveProfile').onclick = saveProfileName;
   $('changePw').onclick = changePassword;
   $('mfaForm').onsubmit = submitMfa;
   $('mfaCancel').onclick = cancelMfaChallenge;
 
-  $('pwToggle').onclick = () => {
-    const opening = $('pwFields').hidden;
-    $('pwFields').hidden = !opening;
-    $('pwToggle').setAttribute('aria-expanded', String(opening));
-    if (opening) $('pw1').focus();
-  };
+  $('pwToggle').onclick = openPwModal;
+  $('pwModalClose').onclick = closePwModal;
+}
+
+function openPwModal() {
+  $('pwModal').hidden = false;
+  $('pwToggle').setAttribute('aria-expanded', 'true');
+  $('pw1').value = '';
+  $('pw2').value = '';
+  $('pwMsg').hidden = true;
+  $('pw1').focus();
+}
+
+function closePwModal() {
+  $('pwModal').hidden = true;
+  $('pwToggle').setAttribute('aria-expanded', 'false');
 }
 
 let authMode = 'signin';
@@ -89,6 +98,7 @@ async function submitAuth(e) {
       await afterPasswordAuth(data.session.user);
     }
   } catch (err) {
+    logError('Sign in/up failed', err);
     authMsg(friendlyAuthError(err), 'bad');
   } finally {
     $('authSubmit').disabled = false;
@@ -181,6 +191,7 @@ async function submitMfa(e) {
     const { data } = await sb.auth.getSession();
     await onSignedIn(data.session.user);
   } catch (err) {
+    logError('MFA challenge failed', err);
     mfaMsg(friendlyAuthError(err), 'bad');
   } finally {
     $('mfaSubmit').disabled = false;
@@ -266,6 +277,7 @@ async function loadProfile() {
   } catch (err) {
     // Offline, or the row has not replicated yet — fall back to the
     // session, which already carries the signup metadata.
+    log('Profile load fell back to session metadata:', err.message || err);
     profile = {
       id: currentUser.id,
       email: currentUser.email,
@@ -286,6 +298,7 @@ async function saveProfileName() {
     paintProfile();
     toast('Name updated.');
   } catch (err) {
+    logError('Profile save failed', err);
     toast('Could not save: ' + (err.message || 'no connection'));
   } finally {
     $('saveProfile').disabled = false;
@@ -313,6 +326,7 @@ async function changePassword() {
     $('pw2').value = '';
     msg('Password changed. It applies on your next sign in.', 'ok');
   } catch (err) {
+    logError('Password change failed', err);
     msg(friendlyAuthError(err), 'bad');
   } finally {
     $('changePw').disabled = false;
