@@ -379,3 +379,87 @@ button:focus-visible,input:focus-visible,select:focus-visible,label:focus-visibl
 }
 .badge.syncing{background:#F0C36D}
 .badge.error{background:#D9705A}
+
+/* ---------------- header layout ---------------- */
+.topbar{gap:6px}
+.navgroup{display:flex;align-items:center;gap:6px;flex:1;min-width:0}
+.tools{display:flex;align-items:center;gap:4px;flex:none}
+
+.iconbtn{
+  width:38px;height:38px;flex:none;
+  display:flex;align-items:center;justify-content:center;
+  border:1px solid #2C3F4C;border-radius:10px;
+  background:transparent;color:#fff;padding:0;
+}
+.iconbtn:active{background:#1D2E39}
+.iconbtn svg{
+  width:18px;height:18px;
+  fill:none;stroke:currentColor;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round;
+}
+
+/* ---------------- income + loan ---------------- */
+.moneyin{display:flex;gap:14px}
+.moneyfield{flex:1;min-width:0}
+.moneyfield .income-edit input{width:100%}
+#availableLine{margin-top:10px}
+
+/* ---------------- year overview ---------------- */
+.yearview{
+  position:fixed;inset:0;z-index:12;
+  background:rgba(16,28,36,.6);
+  display:flex;align-items:flex-start;justify-content:center;
+  padding:16px;overflow-y:auto;
+}
+.yearbox{
+  width:100%;max-width:560px;
+  background:var(--card);border:1px solid var(--line);
+  border-radius:var(--radius);padding:16px;
+  margin-top:10vh;
+}
+.yearhead{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:10px;text-align:center;margin-bottom:14px;
+}
+.yearhead h2{margin:2px 0 0;font-size:19px;font-weight:600}
+.stepper.dark{border-color:var(--line);color:var(--ink)}
+.stepper.dark:active{background:var(--paper)}
+
+.yeargrid{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:8px;
+}
+.ycell{
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+  padding:9px 4px;
+  border:1px solid var(--line);border-radius:10px;
+  background:var(--card);
+}
+.ycell.sel{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.ycell.now .ylabel{color:var(--accent)}
+.ycell.empty{opacity:.55}
+.ylabel{
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--muted);
+}
+.ybar{
+  display:flex;align-items:flex-end;justify-content:center;
+  width:100%;height:34px;
+  background:var(--paper);border-radius:3px;overflow:hidden;
+}
+.ybar i{display:block;width:60%;background:var(--accent);border-radius:2px 2px 0 0;min-height:2px}
+.ybar i.over{background:var(--over)}
+.yamt{
+  font-family:var(--mono);font-size:11px;font-variant-numeric:tabular-nums;
+  color:var(--ink);
+}
+.yeartotals{margin-top:14px;padding-top:4px;border-top:1px solid var(--line)}
+#yearClose{width:100%;margin-top:14px}
+
+.hint b.good{color:var(--accent)}
+.hint b.warn{color:var(--over)}
+.hint b.bad{color:var(--bad)}
+
+@media (max-width:400px){
+  .moneyin{gap:10px}
+  .income-edit input{font-size:17px}
+}

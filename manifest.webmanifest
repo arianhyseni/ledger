@@ -1,6 +1,6 @@
 {
-  "name": "Ledger — finances & prices",
-  "short_name": "Ledger",
+  "name": "TillRoll — finances & prices",
+  "short_name": "TillRoll",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

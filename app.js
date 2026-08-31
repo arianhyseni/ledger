@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initPrices();
   initSettings();
   initSync();
+  initYear();
 
   $('prevMonth').onclick = () => { state.month = shiftMonth(state.month, -1); renderActive(); };
   $('nextMonth').onclick = () => { state.month = shiftMonth(state.month,  1); renderActive(); };

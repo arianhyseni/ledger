@@ -18,6 +18,7 @@ function initAuth() {
   $('authForm').onsubmit = submitAuth;
   $('authToggle').onclick = toggleAuthMode;
   $('signOutBtn').onclick = signOut;
+  $('topSignOut').onclick = signOut;
 }
 
 let authMode = 'signin';
@@ -137,6 +138,7 @@ function showApp(visible) {
   $('appMain').hidden = !visible;
   $('tabs').hidden = !visible;
   $('topbar').hidden = !visible;
+  $('topSignOut').hidden = !(visible && CLOUD_ENABLED);
 }
 
 async function renderAccount() {

@@ -1,4 +1,4 @@
-const CACHE = 'ledger-v5';
+const CACHE = 'tillroll-v6';
 
 const SHELL = [
   './',
@@ -14,6 +14,7 @@ const SHELL = [
   './insights.js',
   './settings.js',
   './app.js',
+  './year.js',
   './dexie.min.js',
   './manifest.webmanifest',
   './icon-192.png',

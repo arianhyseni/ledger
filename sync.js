@@ -23,7 +23,7 @@ const REMOTE_FIELDS = {
   expenses:      ['id', 'date', 'month', 'amount', 'category_id', 'store_id', 'note', 'has_receipt'],
   prices:        ['id', 'product_id', 'store_id', 'price', 'date', 'is_promo'],
   expense_items: ['id', 'expense_id', 'product_id', 'qty', 'unit_price'],
-  income:        ['id', 'month', 'amount', 'source', 'note'],
+  income:        ['id', 'month', 'amount', 'debt', 'source', 'note'],
   settings:      ['key', 'value']
 };
 

@@ -23,10 +23,12 @@ async function renderInsights() {
   const catName   = Object.fromEntries(cats.map(c => [c.id, c.name]));
   const storeName = Object.fromEntries(stores.map(s => [s.id, s.name]));
   const incomeOf  = Object.fromEntries(incomes.map(i => [i.month, i.amount]));
+  const debtOf    = Object.fromEntries(incomes.map(i => [i.month, i.debt || 0]));
 
   const cur       = expenses.filter(e => e.month === state.month);
   const spent     = cur.reduce((s, e) => s + e.amount, 0);
   const income    = incomeOf[state.month] || 0;
+  const debt      = debtOf[state.month] || 0;
   const elapsed   = Math.max(daysElapsed(state.month), 1);
   const total     = daysInMonth(state.month);
   const avgDay    = spent / elapsed;
@@ -81,12 +83,12 @@ async function renderInsights() {
   }));
 
   $('insightsBody').innerHTML = [
-    headlineCard(income, spent, projected, avgDay, target),
+    headlineCard(income, debt, spent, projected, avgDay, target),
     breakdownCard(breakdown, spent),
     trendCard(trend),
     storeCard(storeStats),
     adviceCard(await buildAdvice({
-      income, spent, projected, avgDay, target, breakdown, storeStats,
+      income, debt, spent, projected, avgDay, target, breakdown, storeStats,
       daysLeft: Math.max(total - elapsed, 0)
     }))
   ].join('');
@@ -94,19 +96,20 @@ async function renderInsights() {
 
 /* ---------- cards ---------- */
 
-function headlineCard(income, spent, projected, avgDay, target) {
-  const rate = income > 0 ? Math.round((income - projected) / income * 100) : null;
+function headlineCard(income, debt, spent, projected, avgDay, target) {
+  const rate = income > 0 ? Math.round((income - debt - projected) / income * 100) : null;
   const cls  = rate === null ? '' : (rate >= target ? 'good' : (rate >= 0 ? 'warn' : 'bad'));
   return `
     <div class="card">
       <span class="eyebrow">${escapeHtml(monthLabel(state.month))}</span>
       <dl class="metrics four">
         <div><dt>Income</dt><dd>${fromCents(income)}</dd></div>
+        <div><dt>Loan</dt><dd>${fromCents(debt)}</dd></div>
         <div><dt>Spent</dt><dd>${fromCents(spent)}</dd></div>
         <div><dt>Projected</dt><dd>${fromCents(projected)}</dd></div>
-        <div><dt>Save rate</dt><dd class="${cls}">${rate === null ? '—' : rate + '%'}</dd></div>
       </dl>
-      <p class="hint">Target ${target}% \u00B7 average ${fromCents(Math.round(avgDay))} per day so far.</p>
+      <p class="hint">Save rate <b class="${cls}">${rate === null ? '—' : rate + '%'}</b>
+        against a ${target}% target \u00B7 average ${fromCents(Math.round(avgDay))} per day so far.</p>
     </div>`;
 }
 
@@ -216,7 +219,7 @@ function adviceCard(items) {
 
 async function buildAdvice(ctx) {
   const out = [];
-  const { income, spent, projected, avgDay, target, breakdown, storeStats, daysLeft } = ctx;
+  const { income, debt, spent, projected, avgDay, target, breakdown, storeStats, daysLeft } = ctx;
 
   if (!income) {
     out.push({ tone: 'warn', text: 'Set your income for this month — without it nothing can be measured against a budget.' });
@@ -229,11 +232,17 @@ async function buildAdvice(ctx) {
   }
 
   const keep = Math.round(income * target / 100);
-  const budget = income - keep;
+  const available = income - debt;
+  const budget = available - keep;
 
-  if (projected > income) {
+  if (debt > 0 && debt > income * 0.4) {
+    out.push({ tone: 'warn',
+      text: `Your loan repayment is ${Math.round(debt / income * 100)}% of income. Above roughly 40% there is very little room left to absorb a bad month.` });
+  }
+
+  if (projected > available) {
     out.push({ tone: 'bad',
-      text: `At ${money(Math.round(avgDay))} a day you finish the month ${money(projected - income)} above your income. Daily spend has to drop to ${money(Math.round(budget / daysInMonth(state.month)))} to stay inside it.` });
+      text: `At ${money(Math.round(avgDay))} a day you finish the month ${money(projected - available)} above what is left after the loan. Daily spend has to drop to ${money(Math.round(Math.max(budget, 0) / daysInMonth(state.month)))} to stay inside it.` });
   } else if (projected > budget) {
     const cut = projected - budget;
     const perDay = daysLeft > 0 ? Math.round(cut / daysLeft) : cut;
@@ -241,7 +250,7 @@ async function buildAdvice(ctx) {
       text: `You will stay inside your income but miss the ${target}% savings target by ${money(cut)}. Trimming ${money(perDay)} a day for the remaining ${daysLeft} days closes the gap.` });
   } else {
     out.push({ tone: 'ok',
-      text: `On track. Projected spend of ${money(projected)} leaves ${money(income - projected)} — that is ${Math.round((income - projected) / income * 100)}% against a ${target}% target. Move it out of your current account before you see it.` });
+      text: `On track. Projected spend of ${money(projected)} leaves ${money(available - projected)} — that is ${Math.round((available - projected) / income * 100)}% of income against a ${target}% target. Move it out of your current account before you see it.` });
   }
 
   const top = breakdown[0];

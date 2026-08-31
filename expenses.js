@@ -6,6 +6,7 @@ let pendingPhoto = null;
 
 function initExpenses() {
   $('incomeInput').onchange = saveIncome;
+  $('debtInput').onchange = saveIncome;
   $('expenseForm').onsubmit = saveExpense;
   $('exDate').value = today();
 
@@ -50,13 +51,14 @@ async function resolveStore(name) {
 
 async function saveIncome() {
   const amount = toCents($('incomeInput').value);
+  const debt   = toCents($('debtInput').value);
   const rows = await liveWhere('income', 'month', state.month);
 
   if (rows.length) {
-    await db.income.put(stamp({ ...rows[0], amount }));
+    await db.income.put(stamp({ ...rows[0], amount, debt }));
   } else {
     await db.income.put(stamp({
-      id: uuid(), month: state.month, amount, source: '', note: ''
+      id: uuid(), month: state.month, amount, debt, source: '', note: ''
     }));
   }
 
@@ -156,42 +158,54 @@ async function renderExpenses() {
   const storeName = Object.fromEntries(stores.map(s => [s.id, s.name]));
 
   const income = incomeRows.length ? incomeRows[0].amount : 0;
+  const debt   = incomeRows.length ? (incomeRows[0].debt || 0) : 0;
   const spent  = expenses.reduce((s, e) => s + e.amount, 0);
 
   $('incomeInput').value = income ? fromCents(income) : '';
+  $('debtInput').value   = debt ? fromCents(debt) : '';
   document.querySelectorAll('.cur-sym').forEach(el => el.textContent = window.CURRENCY);
 
-  renderStrip(income, spent);
+  renderStrip(income, debt, spent);
   renderExpenseList(expenses, catName, storeName);
 }
 
-function renderStrip(income, spent) {
+// The loan repayment is money already committed, so everything
+// is measured against what is actually left to spend.
+function renderStrip(income, debt, spent) {
+  const available = Math.max(income - debt, 0);
   const elapsed   = Math.max(daysElapsed(state.month), 1);
   const total     = daysInMonth(state.month);
   const avgPerDay = spent / elapsed;
   const projected = Math.round(avgPerDay * total);
 
-  const pctSpent = income > 0 ? Math.min(spent / income * 100, 100) : 0;
-  const pctProj  = income > 0 ? Math.min(projected / income * 100, 100) : 0;
+  const base     = available > 0 ? available : 0;
+  const pctSpent = base > 0 ? Math.min(spent / base * 100, 100) : 0;
+  const pctProj  = base > 0 ? Math.min(projected / base * 100, 100) : 0;
 
   const fill = $('stripFill');
   fill.style.width = pctSpent + '%';
-  fill.classList.toggle('over', income > 0 && spent > income);
+  fill.classList.toggle('over', base > 0 && spent > base);
 
   const marker = $('stripMarker');
-  marker.hidden = income <= 0;
+  marker.hidden = base <= 0;
   marker.style.left = pctProj + '%';
 
+  $('availableLine').textContent = income > 0
+    ? (debt > 0
+        ? `${money(income)} income less ${money(debt)} loan leaves ${money(available)} to spend.`
+        : `${money(income)} to spend this month.`)
+    : '';
+
   $('stripSpent').textContent = money(spent) + ' spent';
-  $('stripLeft').textContent  = income > 0
-    ? (income - spent >= 0 ? money(income - spent) + ' left'
-                           : money(spent - income) + ' over')
+  $('stripLeft').textContent  = base > 0
+    ? (base - spent >= 0 ? money(base - spent) + ' left'
+                         : money(spent - base) + ' over')
     : 'set your income';
 
   $('mAvg').textContent  = fromCents(Math.round(avgPerDay));
   $('mProj').textContent = fromCents(projected);
   $('mSave').textContent = income > 0
-    ? Math.round((income - projected) / income * 100) + '%'
+    ? Math.round((income - debt - projected) / income * 100) + '%'
     : '—';
 }
 
