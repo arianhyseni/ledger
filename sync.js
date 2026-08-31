@@ -42,12 +42,14 @@ function scheduleSync(delay) {
   syncTimer = setTimeout(syncNow, delay === undefined ? 2500 : delay);
 }
 
+// Resolves true only when both halves completed, so callers can
+// tell a real sync from a skipped or failed one.
 async function syncNow() {
-  if (!CLOUD_ENABLED || !currentUser || syncing) return;
+  if (!CLOUD_ENABLED || !currentUser || syncing) return false;
 
   if (!navigator.onLine) {
     await setSyncStatus('offline');
-    return;
+    return false;
   }
 
   syncing = true;
@@ -59,9 +61,11 @@ async function syncNow() {
     await setMeta('lastSync', now());
     await setSyncStatus('ok');
     await renderActive();
+    return true;
   } catch (err) {
     console.warn('Sync failed:', err);
     await setSyncStatus('error', err.message || String(err));
+    return false;
   } finally {
     syncing = false;
   }

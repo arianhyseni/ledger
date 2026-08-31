@@ -107,14 +107,19 @@ async function onSignedIn(user) {
   }
   await setMeta('userId', user.id);
 
-  await seed();
-  await bootData();
-
   showApp(true);
+
+  // Pull before seeding. On a second device the account already has
+  // its categories, and seeding first would duplicate all of them.
+  // Seeding only fills a genuinely empty account.
+  const synced = CLOUD_ENABLED ? await syncNow() : false;
+  if (!CLOUD_ENABLED || synced) await seed();
+
+  await bootData();
   await renderActive();
   await renderAccount();
 
-  syncNow();
+  if (CLOUD_ENABLED && synced) scheduleSync(1000);
 }
 
 async function signOut() {
