@@ -28,18 +28,26 @@ function initAuth() {
   $('pwModalClose').onclick = closePwModal;
 }
 
+function onPwModalKey(e) {
+  if (e.key === 'Escape') closePwModal();
+}
+
 function openPwModal() {
   $('pwModal').hidden = false;
   $('pwToggle').setAttribute('aria-expanded', 'true');
   $('pw1').value = '';
   $('pw2').value = '';
   $('pwMsg').hidden = true;
+  document.addEventListener('keydown', onPwModalKey);
   $('pw1').focus();
 }
 
 function closePwModal() {
   $('pwModal').hidden = true;
   $('pwToggle').setAttribute('aria-expanded', 'false');
+  document.removeEventListener('keydown', onPwModalKey);
+  const toggle = $('pwToggle');
+  if (toggle) toggle.focus();
 }
 
 let authMode = 'signin';

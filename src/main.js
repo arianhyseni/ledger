@@ -95,7 +95,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const bootMsg = $('bootMsg');
     if (bootMsg) {
       bootMsg.hidden = false;
-      bootMsg.textContent = 'Something went wrong loading the app. Open the browser console for details.';
+      // Static, app-authored markup only — no user or error text is
+      // interpolated here, so innerHTML is safe.
+      bootMsg.innerHTML = `
+        <span class="boot-brand">TillRoll</span>
+        <span class="boot-text">TillRoll could not finish opening. Your data is untouched
+          on this device — reloading usually fixes this.</span>
+        <button class="ghost boot-retry" type="button">Try again</button>`;
+      bootMsg.querySelector('.boot-retry').onclick = () => location.reload();
     }
   }
 });
@@ -114,8 +121,12 @@ function switchScreen(name) {
     if (s.id === 'screen-auth') return;
     s.hidden = (s.id !== 'screen-' + name);
   });
-  document.querySelectorAll('.tab').forEach(t =>
-    t.classList.toggle('active', t.dataset.screen === name));
+  document.querySelectorAll('.tab').forEach(t => {
+    const selected = t.dataset.screen === name;
+    t.classList.toggle('active', selected);
+    if (selected) t.setAttribute('aria-current', 'page');
+    else t.removeAttribute('aria-current');
+  });
   renderActive();
 }
 
@@ -166,7 +177,7 @@ function applyTheme(theme, { animate = false, persist = true } = {}) {
   root.dataset.theme = theme;
   root.style.colorScheme = theme;
   const themeColor = $('themeColor');
-  if (themeColor) themeColor.content = theme === 'dark' ? '#161D25' : '#FFFFFF';
+  if (themeColor) themeColor.content = theme === 'dark' ? '#161D24' : '#FFFFFF';
   if (persist) {
     try { localStorage.setItem(THEME_KEY, theme); } catch (_) {}
   }
@@ -221,6 +232,8 @@ function showDialog({ message, okLabel, cancelLabel, danger, inputValue, require
     const isPrompt    = inputValue !== undefined;
     const isGated     = requireMatch !== undefined;
 
+    const returnFocus = document.activeElement;
+
     $('dialogMessage').textContent = message;
     okBtn.textContent = okLabel || 'OK';
     okBtn.className = danger ? 'danger grow' : 'primary grow';
@@ -243,12 +256,25 @@ function showDialog({ message, okLabel, cancelLabel, danger, inputValue, require
       okBtn.onclick = null;
       cancelBtn.onclick = null;
       okBtn.disabled = false;
+      if (returnFocus && returnFocus.isConnected) returnFocus.focus();
       resolve(result);
     }
     function onKey(e) {
       if (e.key === 'Escape') close(isPrompt ? null : false);
       if (e.key === 'Enter' && isPrompt && !okBtn.disabled) {
         close(isGated ? true : input.value);
+      }
+      if (e.key === 'Tab') {
+        // Contain focus while the dialog is open (§18/§24). Disabled
+        // controls (a gated delete button before its word is typed)
+        // are skipped, exactly as the browser itself would.
+        const ring = [input, cancelBtn, okBtn]
+          .filter(el => !el.disabled && !el.closest('[hidden]'));
+        if (!ring.length) return;
+        const first = ring[0], last = ring[ring.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        else if (!ring.includes(document.activeElement)) { e.preventDefault(); first.focus(); }
       }
     }
 

@@ -108,8 +108,8 @@ function headlineCard(income, debt, spent, projected, avgDay, target) {
         <div><dt>Spent</dt><dd>${fromCents(spent)}</dd></div>
         <div><dt>Projected</dt><dd>${fromCents(projected)}</dd></div>
       </dl>
-      <p class="hint">Save rate <b class="${cls}">${rate === null ? '—' : rate + '%'}</b>
-        against a ${target}% target \u00B7 average ${fromCents(Math.round(avgDay))} per day so far.</p>
+      <p class="hint">Projected save rate <b class="${cls}">${rate === null ? '—' : rate + '%'}</b>
+        against a ${target}% target \u00B7 average ${fromCents(Math.round(avgDay))} per day so far.${rate === null ? ' Set this month\u2019s income to measure a save rate.' : ''}</p>
     </div>`;
 }
 
@@ -125,7 +125,7 @@ function breakdownCard(rows, spent) {
       <div class="bars">
         ${rows.map(r => {
           const delta = r.base ? Math.round((r.amount - r.base) / r.base * 100) : null;
-          const tag = delta === null ? '<span class="dim">new</span>'
+          const tag = delta === null ? '<span class="dim">New this period</span>'
             : `<span class="${delta > 0 ? 'up' : 'down'}">${delta > 0 ? '\u25B2' : '\u25BC'} ${Math.abs(delta)}%</span>`;
           return `
             <div class="barrow">
@@ -136,7 +136,7 @@ function breakdownCard(rows, spent) {
               <div class="bartrack"><div class="barfill" style="width:${r.amount / max * 100}%"></div></div>
               <div class="barfoot">
                 <span class="dim">${Math.round(r.share)}% of spend</span>
-                <span class="dim">6-mo avg ${fromCents(r.base)} ${tag}</span>
+                <span class="dim">${delta === null ? '' : 'prior avg ' + fromCents(r.base) + ' '}${tag}</span>
               </div>
             </div>`;
         }).join('')}
@@ -168,29 +168,53 @@ function trendCard(trend) {
     return `<text x="${x.toFixed(1)}" y="${H - 5}" class="axis">${monthShort(t.month)}</text>`;
   }).join('');
 
+  // A plain-language takeaway plus the underlying numbers — the chart
+  // is never the only way to read this data (§12.3, §21).
+  const cur = trend[trend.length - 1];
+  const withSpend = trend.filter(t => t.spend > 0);
+  const peak = withSpend.length ? withSpend.reduce((a, t) => (t.spend > a.spend ? t : a)) : null;
+  const summaryText = peak
+    ? `Highest spend was ${monthShort(peak.month)} at ${money(peak.spend)}; ${monthShort(cur.month)} is at ${money(cur.spend)} so far.`
+    : 'No spending recorded in this six-month window yet.';
+
   return `
     <div class="card">
       <span class="eyebrow">Six months</span>
-      <svg viewBox="0 0 ${W} ${H}" class="trend" role="img" aria-label="Spending per month against income">
+      <svg viewBox="0 0 ${W} ${H}" class="trend" role="img" aria-label="Bar chart of spending per month with an income line. ${escapeHtml(summaryText)}">
         ${bars}
         <polyline points="${pts}" class="incline"></polyline>
         ${labels}
       </svg>
       <div class="key">
         <span><i class="sw-bar"></i> spent</span>
+        <span><i class="sw-bar sw-cur"></i> this month</span>
         <span><i class="sw-line"></i> income</span>
       </div>
+      <p class="hint">${summaryText}</p>
+      <details class="trend-data">
+        <summary>Monthly figures</summary>
+        <table class="ptable">
+          <thead><tr><th>Month</th><th>Spent</th><th>Income</th></tr></thead>
+          <tbody>
+            ${trend.map(t => `<tr>
+              <td>${monthShort(t.month)}</td>
+              <td class="num">${fromCents(t.spend)}</td>
+              <td class="num">${t.income ? fromCents(t.income) : '<span class="dim">not set</span>'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </details>
     </div>`;
 }
 
 function storeCard(rows) {
   if (!rows.length) {
-    return `<div class="card empty"><span class="eyebrow">Stores</span>
-      <p>Tag expenses with a store to see your average basket per shop.</p></div>`;
+    return `<div class="card empty"><span class="eyebrow">Store spending</span>
+      <p>Tag expenses with a store to see trips, averages and totals per shop.</p></div>`;
   }
   return `
     <div class="card">
-      <span class="eyebrow">Average basket</span>
+      <span class="eyebrow">Store spending</span>
       <table class="ptable">
         <thead><tr><th>Store</th><th>Trips</th><th>Avg</th><th>Total</th></tr></thead>
         <tbody>
@@ -202,6 +226,7 @@ function storeCard(rows) {
           </tr>`).join('')}
         </tbody>
       </table>
+      <p class="hint">A small average can simply mean smaller trips — it does not by itself make a store cheaper.</p>
     </div>`;
 }
 

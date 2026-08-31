@@ -2,11 +2,17 @@
    settings.js — preferences, categories, stores, backup, account
 --------------------------------------------------------- */
 
+function updateCurrencyPreview() {
+  const el = $('currencyPreview');
+  if (el) el.textContent = 'Preview: ' + money(123456);
+}
+
 function initSettings() {
   $('setCurrency').onchange = async () => {
     const v = $('setCurrency').value.trim() || '\u20AC';
     await setSetting('currency', v);
     window.CURRENCY = v;
+    updateCurrencyPreview();
     await renderActive();
     scheduleSync();
   };
@@ -107,11 +113,33 @@ async function doExport() {
 async function doImport(e) {
   const file = e.target.files[0];
   if (!file) return;
-  if (!await appConfirm('Importing replaces everything currently on this device. Continue?', { okLabel: 'Import' })) {
+
+  // Validate the file BEFORE asking to replace anything (§14.5) —
+  // nothing is modified until the format checks out and the user has
+  // confirmed against a concrete summary of what is inside.
+  let dump;
+  try {
+    dump = JSON.parse(await file.text());
+  } catch (err) {
+    logError('Backup import failed', err);
+    toast('That file is not valid JSON. Nothing was changed.');
+    e.target.value = '';
+    return;
+  }
+  if (!dump || dump.app !== 'ledger') {
+    toast('That file is not a TillRoll export. Nothing was changed.');
+    e.target.value = '';
+    return;
+  }
+
+  const data = dump.data || {};
+  const count = t => (Array.isArray(data[t]) ? data[t].length : 0);
+  const summary = `This backup holds ${count('expenses')} expenses, ${count('products')} products and ${count('prices')} price records. Importing replaces everything currently on this device with it.`;
+
+  if (!await appConfirm(summary, { okLabel: 'Replace my data', danger: true })) {
     e.target.value = ''; return;
   }
   try {
-    const dump = JSON.parse(await file.text());
     await importAll(dump);
     await bootData();
     await renderActive();
@@ -129,11 +157,22 @@ async function doImport(e) {
 
 async function deleteAllData() {
   const ok = await appConfirmTyped(
-    'Deletes every expense, product, price and setting — from the server and this device. This cannot be undone. Export a backup first if you want to keep a copy. Type DELETE to confirm.',
+    'Deletes every expense, product, price and setting — from the server and this device. Receipt photos on this device are removed too. This cannot be undone. Export a backup first if you want to keep a copy. Type DELETE to confirm.',
     'DELETE',
     { okLabel: 'Delete everything' }
   );
   if (!ok) return;
+
+  const btn = $('deleteDataBtn');
+  btn.disabled = true;
+  try {
+    await runDeleteAllData();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function runDeleteAllData() {
 
   if (CLOUD_ENABLED && currentUser) {
     if (!navigator.onLine) {
@@ -296,6 +335,7 @@ function setCurrencySelect(value) {
 async function renderSettings() {
   setCurrencySelect(window.CURRENCY);
   $('setTarget').value = window.SAVINGS_TARGET;
+  updateCurrencyPreview();
 
   await renderAccount();
   await renderMfaCard();

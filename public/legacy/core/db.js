@@ -119,8 +119,18 @@ function fromCents(cents) {
   return (cents / 100).toFixed(2);
 }
 
+// Display-only formatting: locale thousands grouping and a true minus
+// sign (U+2212). Stored values stay integer cents; fromCents stays
+// ungrouped because it also feeds <input> values, which must parse.
+function fmtCents(cents) {
+  const neg = cents < 0;
+  const abs = Math.abs(Math.round(cents));
+  const units = Math.floor(abs / 100).toLocaleString();
+  return (neg ? '\u2212' : '') + units + '.' + String(abs % 100).padStart(2, '0');
+}
+
 function money(cents) {
-  return fromCents(cents) + ' ' + (window.CURRENCY || '\u20AC');
+  return fmtCents(cents) + ' ' + (window.CURRENCY || '\u20AC');
 }
 
 /* ---------- dates ---------- */

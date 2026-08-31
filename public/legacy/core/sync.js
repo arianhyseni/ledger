@@ -179,11 +179,15 @@ async function setSyncStatus(state, detail) {
   const pending = await pendingCount();
   const last = await getMeta('lastSync', null);
 
+  // Offline is a state, not an error (§6.6): changes are safe on the
+  // device, so the wording says so and never goes red.
   const labels = {
     syncing: 'Syncing…',
-    ok:      pending ? pending + ' waiting' : 'Synced',
-    offline: pending ? 'Offline · ' + pending + ' waiting' : 'Offline',
-    error:   'Sync error'
+    ok:      pending ? pending + ' change' + (pending === 1 ? '' : 's') + ' waiting to sync' : 'Synced',
+    offline: pending
+      ? 'Offline — ' + pending + ' change' + (pending === 1 ? '' : 's') + ' saved on this device'
+      : 'Offline — saved on this device',
+    error:   'Sync needs attention'
   };
 
   el.textContent = labels[state] || '';
@@ -194,6 +198,9 @@ async function setSyncStatus(state, detail) {
   if (badge) {
     badge.hidden = !(state === 'syncing' || pending > 0 || state === 'error');
     badge.className = 'badge ' + state;
+    // The dot itself is decorative; the words live in Settings.
+    badge.setAttribute('aria-hidden', 'true');
+    badge.title = labels[state] || '';
   }
 }
 

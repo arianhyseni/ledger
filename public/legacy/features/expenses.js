@@ -17,6 +17,8 @@ function initExpenses() {
   };
 
   $('viewerClose').onclick = closeViewer;
+  // Backdrop click may close here — a receipt view holds no unsaved input.
+  $('viewer').onclick = e => { if (e.target.id === 'viewer') closeViewer(); };
 }
 
 /* ---------- lookups ---------- */
@@ -131,17 +133,35 @@ async function deleteExpense(id) {
 
 /* ---------- receipt viewer ---------- */
 
+let viewerReturnFocus = null;
+
+function onViewerKey(e) {
+  if (e.key === 'Escape') closeViewer();
+}
+
 async function openReceipt(expenseId) {
   const r = await db.receipts.where('expense_id').equals(expenseId).first();
   if (!r) { toast('Receipt is stored on the device it was taken on.'); return; }
+
+  const exp = await db.expenses.get(expenseId);
+  $('viewerImg').alt = exp
+    ? `Receipt for ${fromCents(exp.amount)} on ${dayLabel(exp.date)}`
+    : 'Receipt';
+
+  viewerReturnFocus = document.activeElement;
   $('viewerImg').src = URL.createObjectURL(r.blob);
   $('viewer').hidden = false;
+  document.addEventListener('keydown', onViewerKey);
+  $('viewerClose').focus();
 }
 
 function closeViewer() {
   if ($('viewerImg').src.startsWith('blob:')) URL.revokeObjectURL($('viewerImg').src);
   $('viewerImg').src = '';
   $('viewer').hidden = true;
+  document.removeEventListener('keydown', onViewerKey);
+  if (viewerReturnFocus && viewerReturnFocus.isConnected) viewerReturnFocus.focus();
+  viewerReturnFocus = null;
 }
 
 /* ---------- render ---------- */
@@ -170,15 +190,71 @@ async function renderExpenses() {
 }
 
 // The loan repayment is money already committed, so everything
-// is measured against what is actually left to spend.
+// is measured against what is actually left to spend. The headline
+// answers §10.1 of the product brief in order: what is available,
+// am I on pace, and what changed — with honest states when income
+// is missing, debt exceeds income, or the month hasn't started.
 function renderStrip(income, debt, spent) {
-  const available = Math.max(income - debt, 0);
-  const elapsed   = Math.max(daysElapsed(state.month), 1);
-  const total     = daysInMonth(state.month);
-  const avgPerDay = spent / elapsed;
-  const projected = Math.round(avgPerDay * total);
+  const available  = income - debt;                 // may be <= 0
+  const remaining  = available - spent;
+  const total      = daysInMonth(state.month);
+  const elapsedRaw = daysElapsed(state.month);      // 0 for future months
+  const nowMonth   = monthOf(today());
+  const isFuture   = state.month > nowMonth;
+  const isCurrent  = state.month === nowMonth;
+  const avgPerDay  = spent / Math.max(elapsedRaw, 1);
+  // A projection from zero elapsed days is meaningless — never fake one.
+  const projected  = isFuture ? 0 : Math.round(avgPerDay * total);
+  const target     = Number(window.SAVINGS_TARGET || 20);
 
-  const base     = available > 0 ? available : 0;
+  /* ---- headline ---- */
+  const eyebrow = $('heroEyebrow');
+  const big     = $('heroRemaining');
+  const eq      = $('heroEquation');
+  const status  = $('heroStatus');
+
+  if (income <= 0) {
+    // Without income, spending is not automatically overspending.
+    eyebrow.textContent = 'Spent so far';
+    big.textContent = fmtCents(spent);
+    big.classList.remove('neg');
+    eq.hidden = true;
+    status.textContent = spent > 0
+      ? 'Set your income above to see what is actually available this month.'
+      : 'Set your income above, then add expenses as they happen.';
+  } else if (available <= 0) {
+    eyebrow.textContent = 'Committed above income';
+    big.textContent = fmtCents(available);
+    big.classList.add('neg');
+    eq.hidden = false;
+    eq.textContent = `${money(income)} income − ${money(debt)} loan`;
+    status.textContent = 'The loan commitment meets or exceeds income this month, so there is no available amount to measure spending against.';
+  } else {
+    eyebrow.textContent = remaining >= 0 ? 'Available this month' : 'Above available by';
+    big.textContent = fmtCents(Math.abs(remaining));
+    big.classList.toggle('neg', remaining < 0);
+    eq.hidden = false;
+    eq.textContent = debt > 0
+      ? `${money(income)} income − ${money(debt)} loan − ${money(spent)} spent`
+      : `${money(income)} income − ${money(spent)} spent`;
+
+    if (isFuture) {
+      status.textContent = 'This month has not started yet.';
+    } else if (!spent) {
+      status.textContent = 'Nothing spent yet this month.';
+    } else if (isCurrent) {
+      status.textContent = projected <= available
+        ? `On pace to keep ${money(available - projected)} of the ${money(available)} available after the loan.`
+        : `On pace to finish ${money(projected - available)} above the ${money(available)} available after the loan.`;
+    } else {
+      status.textContent = remaining >= 0
+        ? `Finished with ${money(remaining)} kept of the ${money(available)} available.`
+        : `Finished ${money(-remaining)} above the ${money(available)} available.`;
+    }
+  }
+
+  /* ---- progress track (visuals clamp; text stays exact) ---- */
+  const base     = Math.max(available, 0);
   const pctSpent = base > 0 ? Math.min(spent / base * 100, 100) : 0;
   const pctProj  = base > 0 ? Math.min(projected / base * 100, 100) : 0;
 
@@ -187,26 +263,32 @@ function renderStrip(income, debt, spent) {
   fill.classList.toggle('over', base > 0 && spent > base);
 
   const marker = $('stripMarker');
-  marker.hidden = base <= 0;
+  marker.hidden = base <= 0 || isFuture || !spent;
   marker.style.left = pctProj + '%';
 
-  $('availableLine').textContent = income > 0
-    ? (debt > 0
-        ? `${money(income)} income less ${money(debt)} loan leaves ${money(available)} to spend.`
-        : `${money(income)} to spend this month.`)
-    : '';
+  // Savings-target marker: the spend level that would still meet the
+  // target. Hidden near the edges where its label cannot fit legibly.
+  const targetEl = $('stripTarget');
+  const cap = available - Math.round(income * target / 100);
+  const pctCap = base > 0 ? cap / base * 100 : 0;
+  const showTarget = income > 0 && base > 0 && pctCap > 6 && pctCap < 94;
+  targetEl.hidden = !showTarget;
+  if (showTarget) targetEl.style.left = pctCap + '%';
 
-  $('stripSpent').textContent = money(spent) + ' spent';
+  $('stripSpent').textContent = fmtCents(spent) + ' spent';
   $('stripLeft').textContent  = base > 0
-    ? (base - spent >= 0 ? money(base - spent) + ' left'
-                         : money(spent - base) + ' over')
-    : 'set your income';
+    ? (base - spent >= 0 ? fmtCents(base - spent) + ' left'
+                         : fmtCents(spent - base) + ' over')
+    : (income > 0 ? 'nothing to spend after the loan' : 'set your income');
 
-  $('mAvg').textContent  = fromCents(Math.round(avgPerDay));
-  $('mProj').textContent = fromCents(projected);
-  $('mSave').textContent = income > 0
+  /* ---- supporting metrics ---- */
+  $('mAvg').textContent  = isFuture ? '—' : fromCents(Math.round(avgPerDay));
+  $('mProj').textContent = isFuture ? '—' : fromCents(projected);
+  $('mSave').textContent = income > 0 && !isFuture
     ? Math.round((income - debt - projected) / income * 100) + '%'
     : '—';
+  $('mDays').textContent = isCurrent ? String(total - elapsedRaw)
+    : (isFuture ? String(total) : '0');
 }
 
 function renderExpenseList(expenses, catName, storeName) {
@@ -214,7 +296,17 @@ function renderExpenseList(expenses, catName, storeName) {
   $('entryCount').textContent = expenses.length ? expenses.length + ' total' : '';
 
   if (!expenses.length) {
-    list.innerHTML = '<div class="blank">No expenses recorded for this month yet.</div>';
+    // A current month with nothing at all gets a first-run nudge
+    // rather than a bare grey box (§10.4); other months stay factual.
+    const firstRun = state.month === monthOf(today());
+    list.innerHTML = firstRun
+      ? `<div class="blank blank-start">
+           <strong>Start with this month</strong>
+           <span>1. Set your income (and any loan) above.</span>
+           <span>2. Add an expense as it happens — it takes seconds.</span>
+           <span>3. Entries appear here, grouped by day.</span>
+         </div>`
+      : '<div class="blank">No expenses recorded for this month.</div>';
     return;
   }
 
@@ -234,7 +326,7 @@ function renderExpenseList(expenses, catName, storeName) {
             <div class="cat">${escapeHtml(catName[e.category_id] || 'Uncategorised')}</div>
             ${bits ? `<div class="sub">${escapeHtml(bits)}</div>` : ''}
           </div>
-          ${e.has_receipt ? `<button class="chip" onclick="openReceipt('${e.id}')">receipt</button>` : ''}
+          ${e.has_receipt ? `<button class="chip" onclick="openReceipt('${e.id}')" aria-label="View receipt">receipt</button>` : ''}
           <div class="amt">${fromCents(e.amount)}</div>
           <button class="del" onclick="deleteExpense('${e.id}')" aria-label="Delete"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg></button>
         </div>`;

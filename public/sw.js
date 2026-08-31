@@ -1,4 +1,4 @@
-const CACHE = 'tillroll-v22';
+const CACHE = 'tillroll-v25';
 
 const SHELL = [
   './',
@@ -20,8 +20,33 @@ const SHELL = [
   './icons/icon-maskable.png'
 ];
 
+// Vite emits the real stylesheet and entry module under hashed names
+// (assets/index-<hash>.css/.js), so they cannot be listed above. They
+// are read out of the built index.html at install time instead —
+// without them an offline cold start renders unstyled HTML with no app.
+async function hashedAssets() {
+  try {
+    const html = await (await fetch('./index.html', { cache: 'reload' })).text();
+    const urls = [];
+    const re = /(?:href|src)="(\.?\/?assets\/[^"]+)"/g;
+    let m;
+    while ((m = re.exec(html))) urls.push(m[1]);
+    return urls;
+  } catch (_) {
+    return [];   // offline at install time — the fetch handler still fills the cache
+  }
+}
+
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    const urls = SHELL.concat(await hashedAssets());
+    // Cache entries individually: addAll() is atomic, so one 404 (an
+    // optional vendor file, say) would silently leave the app with no
+    // offline cache at all.
+    await Promise.all(urls.map(u => cache.add(u).catch(() => {})));
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', e => {
@@ -34,14 +59,34 @@ self.addEventListener('activate', e => {
 
 // Cache first: the app must work with no signal inside a store.
 self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET') return;
-  e.respondWith(
-    caches.match(e.request).then(hit =>
-      hit || fetch(e.request).then(res => {
+  const req = e.request;
+  if (req.method !== 'GET') return;
+
+  // Only same-origin traffic is cacheable here. Supabase calls must go
+  // straight to the network so sync never reads a stale response.
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+
+  e.respondWith((async () => {
+    const hit = await caches.match(req);
+    if (hit) return hit;
+
+    try {
+      const res = await fetch(req);
+      // Only store real, complete responses.
+      if (res && res.ok && res.type === 'basic') {
         const copy = res.clone();
-        caches.open(CACHE).then(c => c.put(e.request, copy));
-        return res;
-      }).catch(() => hit)
-    )
-  );
+        caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
+      }
+      return res;
+    } catch (err) {
+      // Offline and uncached: a navigation still gets the app shell so
+      // TillRoll opens instead of showing the browser's error page.
+      if (req.mode === 'navigate') {
+        const shell = await caches.match('./index.html');
+        if (shell) return shell;
+      }
+      throw err;
+    }
+  })());
 });

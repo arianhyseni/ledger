@@ -6,24 +6,40 @@
 --------------------------------------------------------- */
 
 let yearShown = new Date().getFullYear();
+let yearReturnFocus = null;
 
 function initYear() {
   $('yearBtn').onclick = () => {
     yearShown = Number(state.month.slice(0, 4));
     openYear();
   };
-  $('yearClose').onclick = () => { $('yearView').hidden = true; };
+  $('yearClose').onclick = closeYear;
   $('yearPrev').onclick = () => { yearShown--; renderYear(); };
   $('yearNext').onclick = () => { yearShown++; renderYear(); };
 
+  // Backdrop click may close — the year view holds no unsaved input.
   $('yearView').onclick = e => {
-    if (e.target.id === 'yearView') $('yearView').hidden = true;
+    if (e.target.id === 'yearView') closeYear();
   };
 }
 
+function onYearKey(e) {
+  if (e.key === 'Escape') closeYear();
+}
+
 async function openYear() {
+  yearReturnFocus = document.activeElement;
   $('yearView').hidden = false;
+  document.addEventListener('keydown', onYearKey);
   await renderYear();
+  $('yearClose').focus();
+}
+
+function closeYear() {
+  $('yearView').hidden = true;
+  document.removeEventListener('keydown', onYearKey);
+  if (yearReturnFocus && yearReturnFocus.isConnected) yearReturnFocus.focus();
+  yearReturnFocus = null;
 }
 
 async function renderYear() {
@@ -83,7 +99,7 @@ async function renderYear() {
 
 function jumpToMonth(month) {
   state.month = month;
-  $('yearView').hidden = true;
+  closeYear();
   if (!MONTHLY.includes(state.screen)) switchScreen('expenses');
   else renderActive();
 }

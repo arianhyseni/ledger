@@ -29,25 +29,30 @@
    (bg-paper, text-ink, shadow-card, …) flips automatically with the
    selected theme without screen-specific dark variants. */
 @theme {
-  --color-paper: #E7EAEE;
+  /* §17.1 semantic roles from the master brief, mapped onto the
+     existing token names so no component rule has to change:
+     paper=canvas, card=surface, raise=surface-subtle, ink=text-primary,
+     ink-2=text-secondary, muted=text-muted, line=border,
+     hair=border-subtle, good=positive, over=caution, bad=critical. */
+  --color-paper: #F1F3F5;
   --color-card: #FFFFFF;
-  --color-raise: #F4F6F8;
-  --color-ink: #111820;
-  --color-ink-2: #3B4854;
+  --color-raise: #F7F8FA;
+  --color-ink: #121820;
+  --color-ink-2: #43505D;
   --color-muted: #65727E;
-  --color-line: #C2CBD4;
+  --color-line: #CBD3DB;
   --color-hair: #E4E8EC;
 
-  --color-accent: #2340D6;        /* interactive only */
-  --color-accent-ink: #1B33A8;
-  --color-accent-wash: #EAEEFC;
+  --color-accent: #2746D8;        /* interactive only */
+  --color-accent-ink: #1D35A8;
+  --color-accent-wash: #E9EDFF;
 
-  --color-good: #146B3F;
-  --color-good-wash: #E6F2EB;
-  --color-over: #9A5A00;
-  --color-over-wash: #FBF0DE;
-  --color-bad: #B3261E;
-  --color-bad-wash: #FBEBEA;
+  --color-good: #176B42;
+  --color-good-wash: #E5F3EB;
+  --color-over: #8A5600;
+  --color-over-wash: #FFF1D8;
+  --color-bad: #B4231A;
+  --color-bad-wash: #FCEAE8;
 
   --radius-lg: 14px;
   --radius-md: 11px;
@@ -67,25 +72,25 @@
 }
 
 :root[data-theme="dark"] {
-    --color-paper: #0D1217;
-    --color-card: #161D25;
-    --color-raise: #1E262F;
-    --color-ink: #EDF1F5;
-    --color-ink-2: #C0CAD4;
-    --color-muted: #8A98A5;
-    --color-line: #2E3944;
-    --color-hair: #232C35;
+    --color-paper: #0E1318;
+    --color-card: #161D24;
+    --color-raise: #1D252E;
+    --color-ink: #F0F3F6;
+    --color-ink-2: #C4CED7;
+    --color-muted: #96A3AF;
+    --color-line: #33404B;
+    --color-hair: #26313B;
 
-    --color-accent: #8FA6FF;
-    --color-accent-ink: #B3C2FF;
-    --color-accent-wash: #1B2740;
+    --color-accent: #9AAEFF;
+    --color-accent-ink: #C0CBFF;
+    --color-accent-wash: #202B48;
 
-    --color-good: #6FD69B;
-    --color-good-wash: #14291E;
-    --color-over: #E8B564;
-    --color-over-wash: #2C2213;
-    --color-bad: #F0938A;
-    --color-bad-wash: #2E1917;
+    --color-good: #72D39D;
+    --color-good-wash: #163023;
+    --color-over: #F1BE6B;
+    --color-over-wash: #332713;
+    --color-bad: #FF9B92;
+    --color-bad-wash: #361B19;
 
     --shadow-card: 0 1px 2px rgba(0,0,0,.5);
     --shadow-up: 0 -2px 16px rgba(0,0,0,.55);
@@ -248,6 +253,42 @@ main { @apply p-3 flex flex-col gap-3 max-w-[560px] mx-auto; }
 }
 .strip-legend { @apply flex justify-between gap-2.5 font-mono text-sm font-semibold tabular-nums text-ink-2; }
 .strip-legend span:last-child { @apply text-ink; }
+
+/* ---------------- overview hero (§10.1) ---------------- */
+.hero-amount {
+  @apply flex items-baseline gap-1.5 font-mono font-bold tabular-nums text-ink;
+  font-size: clamp(2rem, 7vw, 3.25rem);
+  letter-spacing: -.04em; line-height: 1.1;
+  margin-top: 2px;
+}
+.hero-amount .cur { @apply text-[19px] font-sans font-semibold text-muted; }
+.hero-amount .neg { @apply text-bad; }
+.hero-equation {
+  @apply mt-1.5 font-mono tabular-nums text-[13.5px] text-muted tracking-[-.01em];
+}
+.hero-status { @apply mt-2; }
+.strip-card .moneyin { @apply mt-4 pt-3.5 border-t border-hair; }
+.metrics.four.hero-metrics { @apply border-t border-hair pt-3.5 mt-4; }
+
+/* The savings-target marker: the spend level that still meets the
+   target. Distinct colour AND its own text label — never hue alone. */
+.strip-target {
+  @apply absolute top-0 bottom-0 w-[3px] bg-accent rounded-[2px];
+  box-shadow: 0 0 0 2px var(--color-card);
+}
+.strip-target::after {
+  content: "target";
+  @apply absolute font-sans text-[10px] font-bold tracking-[.08em] uppercase text-accent-ink;
+  bottom: -16px; left: -14px;
+}
+.strip-card .strip { margin-bottom: 22px; }
+
+/* First-run nudge on an empty current month (§10.4) */
+.blank-start { @apply flex flex-col gap-1.5 text-left; }
+.blank-start strong {
+  @apply text-ink text-[16px] mb-1;
+  font-weight: var(--font-weight-heading);
+}
 
 .metrics { @apply grid grid-cols-3 gap-1 mt-4 pt-3.5 border-t border-hair; }
 .metrics.four { @apply grid-cols-4 border-t-0 pt-0.5 mt-3; }
@@ -429,6 +470,7 @@ button.danger.grow { @apply flex-1; }
 .entry .meta, .prow .meta { @apply flex-1 min-w-0 text-left; }
 .cat { @apply text-[17px] tracking-[-.01em]; font-weight: var(--font-weight-subheading); }
 .sub { @apply mt-0.5 text-[13.5px] text-muted whitespace-nowrap overflow-hidden text-ellipsis; }
+.sub.sub2 { @apply text-[12.5px]; }
 .amt { @apply font-mono font-bold tabular-nums; font-size: 19px; letter-spacing: -.035em; }
 
 .chip {
@@ -484,6 +526,11 @@ button.danger.grow { @apply flex-1; }
 .priceadd {
   @apply grid grid-cols-2 gap-2.5 mt-3.5 pt-3.5 border-t border-hair;
 }
+/* Screen-level "no stores yet" notice on Prices (§11.7) */
+.notice {
+  @apply flex flex-col gap-2.5 items-start bg-card border-none rounded-lg p-4 shadow-card;
+}
+.notice .hint { @apply m-0; }
 .priceadd .promo {
   @apply flex items-center gap-2.5 px-3 rounded-md bg-raise text-[15px] font-semibold text-ink-2;
   min-height: var(--spacing-tap);
@@ -495,20 +542,11 @@ button.danger.grow { @apply flex-1; }
   accent-color: var(--color-accent);
 }
 .priceadd input[type="checkbox"]:focus { box-shadow: none; background: none; }
-.priceactions {
-  @apply col-span-2 flex gap-2.5;
-}
-.priceactions .ghost { @apply flex-1; }
-.priceactions .product-delete {
-  @apply flex-none flex items-center justify-center border border-bad rounded-md bg-bad-wash text-bad p-0;
-  width: var(--spacing-tap); height: var(--spacing-tap);
-}
-.priceactions .product-delete:active { @apply bg-card; }
-.priceactions .product-delete svg {
-  @apply w-5 h-5;
-  fill: none; stroke: currentColor; stroke-width: 1.8;
-  stroke-linecap: round; stroke-linejoin: round;
-}
+.priceadd-save { @apply col-span-2 w-full; }
+
+/* Product management sits apart from the price form: deleting a
+   product must stay reachable even with no stores configured. */
+.pmanage { @apply mt-3.5 pt-1 border-t border-hair; }
 
 .phist { @apply mt-3.5 flex flex-col; }
 .phrow {
@@ -534,13 +572,24 @@ button.danger.grow { @apply flex-1; }
 
 .trend { @apply w-full h-auto mt-3.5 block; }
 .trend .bar { fill: var(--color-line); }
-.trend .bar-cur { fill: var(--color-accent); }
+/* Current month is identified by outline as well as colour (§12.3). */
+.trend .bar-cur { fill: var(--color-accent); stroke: var(--color-accent-ink); stroke-width: 1.5; }
 .trend .incline { fill: none; stroke: var(--color-ink); stroke-width: 2; stroke-dasharray: 5 4; }
 .trend .axis { @apply font-sans text-[10px] font-semibold; fill: var(--color-muted); text-anchor: middle; }
-.key { @apply flex gap-4.5 mt-2.5 text-[12px] font-semibold tracking-[.04em] text-muted; }
+.key { @apply flex flex-wrap gap-4.5 mt-2.5 text-[12px] font-semibold tracking-[.04em] text-muted; }
 .key i { @apply inline-block w-4 h-[9px] mr-[7px] align-middle; }
-.sw-bar { @apply bg-accent rounded-[3px]; }
+.sw-bar { @apply bg-line rounded-[3px]; }
+.sw-bar.sw-cur { @apply bg-accent; border: 1.5px solid var(--color-accent-ink); }
 .sw-line { @apply h-0; border-top: 2px dashed var(--color-ink); }
+
+.trend-data { @apply mt-2; }
+.trend-data summary {
+  @apply cursor-pointer text-accent text-[14px] font-semibold flex items-center;
+  min-height: 44px; list-style: none;
+}
+.trend-data summary::-webkit-details-marker { display: none; }
+.trend-data summary::after { content: " ›"; font-family: var(--font-mono); margin-left: 4px; }
+.trend-data[open] summary::after { content: " ‹"; }
 
 .advice { @apply list-none mt-3.5 p-0 flex flex-col gap-2.5; }
 .advice li {
@@ -581,24 +630,66 @@ button.danger.grow { @apply flex-1; }
 .badge.syncing { @apply bg-over; }
 .badge.error { @apply bg-bad; }
 
-/* ---------------- tabs ---------------- */
+/* ---------------- primary navigation ----------------
+   One DOM, two shapes: a bottom bar on phones/tablets, a left rail
+   from 1024px up (§7 of the master brief). The rail offset lives on
+   <body> padding so sticky/centred content re-centres automatically. */
 .tabs {
   @apply fixed left-0 right-0 bottom-0 z-5 flex gap-1 bg-card border-t border-line;
   box-shadow: var(--shadow-up);
   padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
 }
-@media (min-width: 600px) {
+.tabs-brand { display: none; }
+@media (min-width: 600px) and (max-width: 1023px) {
   .tabs {
     @apply left-1/2 -translate-x-1/2 w-[560px] border-l border-r border-line;
   }
+}
+@media (min-width: 600px) {
   .toast { @apply left-1/2 -translate-x-1/2 w-[536px]; right: auto; }
 }
 .tab {
-  @apply flex-1 border-none rounded-lg bg-transparent font-sans text-[13px] font-semibold tracking-[-.005em] text-muted;
+  @apply flex-1 flex flex-col items-center justify-center gap-0.5 border-none rounded-lg bg-transparent font-sans text-[12px] tracking-[-.005em] text-muted;
+  font-weight: var(--font-weight-label);
   min-height: 56px; padding: 6px 2px;
+}
+.tab svg {
+  @apply w-[22px] h-[22px];
+  fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round;
 }
 .tab:active { @apply bg-raise; }
 .tab.active { @apply text-accent-ink bg-accent-wash font-bold shadow-none; }
+
+@media (min-width: 1024px) {
+  /* Only shift the canvas while the nav is actually shown — the
+     signed-out auth screen has no rail and must stay centred. */
+  body:has(.tabs:not([hidden])) { padding-left: 216px; }
+  body:has(.tabs:not([hidden])) .toast { left: calc(50% + 108px); }
+  /* Fixed overlays are viewport-relative, so they ignore the body
+     padding above. Inset them past the rail so their content centres
+     over the canvas rather than under the navigation. */
+  body:has(.tabs:not([hidden])) .dialog,
+  body:has(.tabs:not([hidden])) .yearview,
+  body:has(.tabs:not([hidden])) .viewer { left: 216px; }
+  .tabs {
+    left: 0; right: auto; top: 0; bottom: 0;
+    transform: none; width: 216px;
+    @apply flex-col justify-start gap-1 border-t-0 border-r border-line;
+    box-shadow: none;
+    padding: 18px 12px calc(18px + env(safe-area-inset-bottom));
+  }
+  .tabs-brand {
+    @apply block font-sans text-ink text-[19px] tracking-[-.02em];
+    font-weight: var(--font-weight-heading);
+    padding: 4px 14px 18px;
+  }
+  .tab {
+    @apply flex-none flex-row justify-start gap-2.5 text-[15px];
+    min-height: 48px; padding: 0 14px;
+  }
+  .tab svg { @apply w-5 h-5; }
+}
 
 /* ---------------- barcode scanner ---------------- */
 .scanner {
@@ -645,13 +736,51 @@ button:focus-visible, input:focus-visible, select:focus-visible, label:focus-vis
 
 button:disabled { @apply opacity-40; cursor: not-allowed; }
 
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+/* ---------------- motion (§19) ----------------
+   Motion communicates state and causality, briefly. Transforms and
+   opacity only; nothing here is required to understand the screen. */
+button.primary, .ghost, button.danger, .iconbtn, .stepper, .tab, .fancy-date-cell {
+  transition: transform .12s ease;
+}
+button.primary:active, .ghost:active, button.danger:active,
+.iconbtn:active, .stepper:active, .tab:active { transform: scale(.97); }
+
+@keyframes dlgIn { from { opacity: 0; transform: scale(.96) translateY(6px); } }
+.dialog .dialogbox, .yearbox { animation: dlgIn .22s cubic-bezier(.16, 1, .3, 1); }
+
+@keyframes panelIn { from { opacity: 0; transform: translateY(4px); } }
+.fancy-select-panel, .fancy-date-panel { animation: panelIn .16s cubic-bezier(.16, 1, .3, 1); }
+
+/* No transform here — the toast is centred by translate at >=600px. */
+@keyframes fadeIn { from { opacity: 0; } }
+.toast { animation: fadeIn .2s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  html { scroll-behavior: auto; }
+}
 
 /* ---------------- boot + auth ---------------- */
 .boot {
-  @apply text-center text-muted font-bold tracking-[.12em] uppercase;
-  padding: 48px 16px; font-size: 13px;
+  @apply flex flex-col items-center justify-center gap-3 text-center text-muted;
+  padding: 26vh 16px 48px; font-size: 14px;
 }
+.boot-brand {
+  @apply font-sans text-ink text-[24px] tracking-[-.02em];
+  font-weight: var(--font-weight-heading);
+}
+.boot-spinner {
+  @apply block w-5 h-5 rounded-full;
+  border: 2.5px solid var(--color-hair);
+  border-top-color: var(--color-accent);
+  animation: bootSpin .9s linear infinite;
+}
+@keyframes bootSpin { to { transform: rotate(360deg); } }
+.boot-retry { @apply mt-2; }
 
 .screen.auth { @apply flex items-center justify-center p-5; min-height: 100vh; }
 .authbox { @apply w-full max-w-[400px] bg-card border-none shadow-card rounded-[18px] p-6; }
