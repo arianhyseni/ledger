@@ -10,7 +10,7 @@ works with no signal.
     app.css                  styles
     manifest.webmanifest     install metadata
     sw.js                    service worker (offline cache)
-    js/db.js                 schema, seed, money/date helpers, backup
+    db.js                    schema, seed, money/date helpers, backup
     js/expenses.js           income, expense entry, budget strip
     js/prices.js             products, store prices, averages
     js/insights.js           analytics, trends, saving advice
@@ -22,7 +22,7 @@ works with no signal.
 
 ### 1. Quick test on your PC
 
-    cd finance-app
+    cd ledger
     python3 -m http.server 8080
 
 Open http://localhost:8080 — everything works, including install.

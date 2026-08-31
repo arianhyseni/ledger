@@ -1,19 +1,19 @@
-const CACHE = 'ledger-v2';
+const CACHE = 'ledger-v3';
 
 const SHELL = [
   './',
   './index.html',
   './app.css',
-  './js/db.js',
-  './js/expenses.js',
-  './js/prices.js',
-  './js/insights.js',
-  './js/settings.js',
-  './js/app.js',
-  './vendor/dexie.min.js',
+  './db.js',
+  './expenses.js',
+  './prices.js',
+  './insights.js',
+  './settings.js',
+  './app.js',
+  './dexie.min.js',
   './manifest.webmanifest',
-  './icons/icon-192.png',
-  './icons/icon-512.png'
+  './icon-192.png',
+  './icon-512.png'
 ];
 
 self.addEventListener('install', e => {
