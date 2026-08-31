@@ -1,3 +1,10 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TillRoll — design sandbox</title>
+<style>
 /* =========================================================
    TillRoll — v2 theme
    Drop-in replacement for the app stylesheet. Same markup,
@@ -660,3 +667,398 @@ button:focus-visible,input:focus-visible,select:focus-visible,label:focus-visibl
   .metrics.four dd{font-size:15px}
   .yeargrid{gap:6px}
 }
+
+/* ---- sandbox chrome only, not part of the app ---- */
+body{padding-bottom:40px}
+.sandbox-note{
+  max-width:560px;margin:20px auto;padding:14px 16px;
+  background:#101C24;color:#C7D6DC;border-radius:12px;
+  font-size:13px;line-height:1.5;
+}
+.sandbox-label{
+  max-width:560px;margin:34px auto 8px;
+  font-family:var(--mono);font-size:11px;letter-spacing:.16em;
+  text-transform:uppercase;color:#7D919C;
+}
+.sandbox-frame{
+  max-width:560px;margin:0 auto;
+  border:1px dashed #C9D4D8;border-radius:16px;
+  padding:10px;background:var(--paper);
+}
+.sandbox-frame main{padding:8px}
+.topbar.sandbox-frame{position:static;border-radius:16px}
+
+</style>
+</head>
+<body>
+
+<div class="sandbox-note">
+  Static design sandbox — every screen of TillRoll with sample data.
+  No JavaScript, no login. Class names and markup match the real app exactly,
+  so CSS written against this drops straight in.
+</div>
+
+<div class="sandbox-label">1 · Sign in</div>
+<section class="screen auth sandbox-frame">
+  <div class="authbox">
+    <div class="brand">
+      <span class="eyebrow">TillRoll</span>
+      <h1>Sign in</h1>
+    </div>
+    <form class="form">
+      <div class="field">
+        <label>Email</label>
+        <input type="email" value="arian@tillroll.app">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" value="password">
+      </div>
+      <button type="button" class="primary">Sign in</button>
+    </form>
+    <p class="authmsg bad">Wrong email or password.</p>
+    <button class="linkbtn">No account? Create one</button>
+  </div>
+</section>
+
+<div class="sandbox-label">2 · Header</div>
+<header class="topbar sandbox-frame">
+  <div class="navgroup">
+    <button class="stepper">&#8249;</button>
+    <div class="monthbox">
+      <span class="eyebrow">Month</span>
+      <h1>August 2026</h1>
+    </div>
+    <button class="stepper">&#8250;</button>
+  </div>
+  <div class="tools">
+    <span class="badge syncing"></span>
+    <button class="iconbtn"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></button>
+    <button class="iconbtn"><svg viewBox="0 0 24 24"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4"/><path d="M10 8l-4 4 4 4M6 12h10"/></svg></button>
+  </div>
+</header>
+
+<div class="sandbox-label">3 · Expenses</div>
+<main class="sandbox-frame">
+  <div class="card strip-card">
+    <div class="moneyin">
+      <div class="moneyfield">
+        <label class="eyebrow">Income this month</label>
+        <div class="income-edit"><input type="text" value="1200.00"><span class="cur">&euro;</span></div>
+      </div>
+      <div class="moneyfield">
+        <label class="eyebrow">Loan / debt</label>
+        <div class="income-edit"><input type="text" value="300.00"><span class="cur">&euro;</span></div>
+      </div>
+    </div>
+    <p class="hint">1200.00 &euro; income less 300.00 &euro; loan leaves 900.00 &euro; to spend.</p>
+
+    <div class="strip">
+      <div class="strip-fill" style="width:82%"></div>
+      <div class="strip-marker" style="left:96%"></div>
+    </div>
+    <div class="strip-legend">
+      <span>743.20 &euro; spent</span>
+      <span>156.80 &euro; left</span>
+    </div>
+
+    <dl class="metrics">
+      <div><dt>Avg / day</dt><dd>27.53</dd></div>
+      <div><dt>Projected</dt><dd>853.43</dd></div>
+      <div><dt>Save rate</dt><dd>4%</dd></div>
+    </dl>
+  </div>
+
+  <form class="card form">
+    <span class="eyebrow">Add expense</span>
+    <div class="row">
+      <div class="field grow"><label>Amount</label><input type="text" placeholder="0.00"></div>
+      <div class="field"><label>Date</label><input type="text" value="2026-08-31"></div>
+    </div>
+    <div class="row">
+      <div class="field grow"><label>Category</label>
+        <select><option>Groceries</option><option>Transport</option></select></div>
+      <div class="field grow"><label>Store</label><input type="text" placeholder="Optional"></div>
+    </div>
+    <div class="field"><label>Note</label><input type="text" placeholder="Optional"></div>
+    <div class="row bottom">
+      <label class="shoot has">Receipt attached</label>
+      <button type="button" class="primary">Save expense</button>
+    </div>
+  </form>
+
+  <div class="listhead">
+    <span class="eyebrow">Entries</span>
+    <span class="eyebrow">14 total</span>
+  </div>
+  <div>
+    <div class="daygroup">
+      <div class="dayhead"><span>Sat, 29 Aug</span><span>62.40</span></div>
+      <div class="entry">
+        <div class="meta"><div class="cat">Groceries</div><div class="sub">Viva Fresh &middot; weekly shop</div></div>
+        <button class="chip">receipt</button>
+        <div class="amt">45.50</div>
+        <button class="del">&times;</button>
+      </div>
+      <div class="entry">
+        <div class="meta"><div class="cat">Household</div><div class="sub">Viva Fresh</div></div>
+        <div class="amt">16.90</div>
+        <button class="del">&times;</button>
+      </div>
+    </div>
+    <div class="daygroup">
+      <div class="dayhead"><span>Thu, 27 Aug</span><span>30.00</span></div>
+      <div class="entry">
+        <div class="meta"><div class="cat">Transport</div><div class="sub">Interex &middot; petrol</div></div>
+        <div class="amt">30.00</div>
+        <button class="del">&times;</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="sandbox-label">4 · Prices &amp; products</div>
+<main class="sandbox-frame">
+  <div class="card">
+    <div class="row bottom">
+      <div class="field grow"><label class="eyebrow">Find product</label>
+        <input type="search" placeholder="Type a name or barcode"></div>
+      <button class="ghost">+ New</button>
+    </div>
+  </div>
+
+  <div class="listhead">
+    <span class="eyebrow">Products</span><span class="eyebrow">6 of 6</span>
+  </div>
+
+  <div>
+    <div class="daygroup">
+      <button class="prow">
+        <div class="meta">
+          <div class="cat">Milk 1L</div>
+          <div class="sub">Groceries &middot; l &middot; 0.95 &euro; avg at Interex</div>
+        </div>
+        <span class="caret">&#8722;</span>
+      </button>
+      <div class="pdetail">
+        <table class="ptable">
+          <thead><tr><th>Store</th><th>Latest</th><th>Average</th><th>n</th></tr></thead>
+          <tbody>
+            <tr class="best"><td>Interex</td><td class="num">0.95</td><td class="num">0.95</td><td class="num dim">1</td></tr>
+            <tr><td>Viva Fresh</td><td class="num">1.20</td><td class="num">1.15</td><td class="num dim">2</td></tr>
+          </tbody>
+        </table>
+        <p class="hint">Buying at Interex saves 0.20 &euro; per l versus the dearest store on record.</p>
+        <div class="priceadd">
+          <select><option>Viva Fresh</option><option>Interex</option></select>
+          <input type="text" placeholder="0.00">
+          <input type="text" value="2026-08-31">
+          <label class="promo"><input type="checkbox"> promo</label>
+          <button class="ghost">Record</button>
+        </div>
+        <div class="phist">
+          <div class="phrow"><span class="dim">2026-08-10</span><span>Viva Fresh</span><span class="num">1.20</span><button class="del">&times;</button></div>
+          <div class="phrow"><span class="dim">2026-08-05</span><span>Interex</span><span class="chip">promo</span><span class="num">0.95</span><button class="del">&times;</button></div>
+        </div>
+        <button class="linkdanger">Delete product</button>
+      </div>
+    </div>
+
+    <div class="daygroup">
+      <button class="prow">
+        <div class="meta">
+          <div class="cat">Bread 500g</div>
+          <div class="sub">Groceries &middot; pcs &middot; 0.55 &euro; avg at Viva Fresh</div>
+        </div>
+        <span class="caret">+</span>
+      </button>
+    </div>
+  </div>
+</main>
+
+<div class="sandbox-label">5 · Insights</div>
+<main class="sandbox-frame">
+  <div class="card">
+    <span class="eyebrow">August 2026</span>
+    <dl class="metrics four">
+      <div><dt>Income</dt><dd>1200.00</dd></div>
+      <div><dt>Loan</dt><dd>300.00</dd></div>
+      <div><dt>Spent</dt><dd>743.20</dd></div>
+      <div><dt>Projected</dt><dd>853.43</dd></div>
+    </dl>
+    <p class="hint">Save rate <b class="warn">4%</b> against a 20% target &middot; average 27.53 per day so far.</p>
+  </div>
+
+  <div class="card">
+    <span class="eyebrow">By category</span>
+    <div class="bars">
+      <div class="barrow">
+        <div class="barhead"><span>Groceries</span><span class="num">412.60</span></div>
+        <div class="bartrack"><div class="barfill" style="width:100%"></div></div>
+        <div class="barfoot"><span class="dim">56% of spend</span><span class="dim">6-mo avg 380.00 <span class="up">&#9650; 9%</span></span></div>
+      </div>
+      <div class="barrow">
+        <div class="barhead"><span>Transport</span><span class="num">180.00</span></div>
+        <div class="bartrack"><div class="barfill" style="width:44%"></div></div>
+        <div class="barfoot"><span class="dim">24% of spend</span><span class="dim">6-mo avg 210.00 <span class="down">&#9660; 14%</span></span></div>
+      </div>
+      <div class="barrow">
+        <div class="barhead"><span>Eating out</span><span class="num">150.60</span></div>
+        <div class="bartrack"><div class="barfill" style="width:36%"></div></div>
+        <div class="barfoot"><span class="dim">20% of spend</span><span class="dim">6-mo avg 0.00 <span class="dim">new</span></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <span class="eyebrow">Six months</span>
+    <svg viewBox="0 0 320 130" class="trend">
+      <rect x="22.4" y="46.0" width="30.7" height="66.0" rx="2" class="bar"></rect>
+      <rect x="70.6" y="38.0" width="30.7" height="74.0" rx="2" class="bar"></rect>
+      <rect x="118.8" y="60.0" width="30.7" height="52.0" rx="2" class="bar"></rect>
+      <rect x="167.0" y="30.0" width="30.7" height="82.0" rx="2" class="bar"></rect>
+      <rect x="215.2" y="52.0" width="30.7" height="60.0" rx="2" class="bar"></rect>
+      <rect x="263.4" y="24.0" width="30.7" height="88.0" rx="2" class="bar-cur"></rect>
+      <polyline points="38.0,28.0 86.0,28.0 134.0,28.0 182.0,22.0 230.0,22.0 278.0,22.0" class="incline"></polyline>
+      <text x="38.0" y="125" class="axis">Mar</text>
+      <text x="86.0" y="125" class="axis">Apr</text>
+      <text x="134.0" y="125" class="axis">May</text>
+      <text x="182.0" y="125" class="axis">Jun</text>
+      <text x="230.0" y="125" class="axis">Jul</text>
+      <text x="278.0" y="125" class="axis">Aug</text>
+    </svg>
+    <div class="key"><span><i class="sw-bar"></i> spent</span><span><i class="sw-line"></i> income</span></div>
+  </div>
+
+  <div class="card">
+    <span class="eyebrow">Average basket</span>
+    <table class="ptable">
+      <thead><tr><th>Store</th><th>Trips</th><th>Avg</th><th>Total</th></tr></thead>
+      <tbody>
+        <tr><td>Viva Fresh</td><td class="num dim">7</td><td class="num">44.10</td><td class="num">308.70</td></tr>
+        <tr><td>Interex</td><td class="num dim">4</td><td class="num">62.30</td><td class="num">249.20</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <span class="eyebrow">Advice</span>
+    <ul class="advice">
+      <li class="warn">You will stay inside your income but miss the 20% savings target by 133.43 &euro;. Trimming 44.48 &euro; a day for the remaining 3 days closes the gap.</li>
+      <li class="bad">At 27.53 &euro; a day you finish the month above what is left after the loan.</li>
+      <li class="warn">Groceries is 56% of everything you spent. One category that dominant is where any real saving has to come from.</li>
+      <li class="ok">Across 4 products with prices in more than one store, buying each at its cheapest shop would save 1.85 &euro; per full basket.</li>
+    </ul>
+  </div>
+</main>
+
+<div class="sandbox-label">6 · Settings</div>
+<main class="sandbox-frame">
+  <div class="card">
+    <span class="eyebrow">Account</span>
+    <div class="acctrow">
+      <div>
+        <div class="cat">arian@tillroll.app</div>
+        <div class="syncstatus ok">Synced</div>
+      </div>
+      <button class="ghost">Sync now</button>
+    </div>
+    <button class="linkdanger">Sign out</button>
+  </div>
+
+  <div class="card form">
+    <span class="eyebrow">Preferences</span>
+    <div class="row">
+      <div class="field grow"><label>Currency symbol</label><input type="text" value="&euro;"></div>
+      <div class="field grow"><label>Savings target (%)</label><input type="text" value="20"></div>
+    </div>
+  </div>
+
+  <div class="card form">
+    <span class="eyebrow">Categories</span>
+    <div class="row bottom">
+      <div class="field grow"><input type="text" placeholder="New category name"></div>
+      <button class="ghost">Add</button>
+    </div>
+    <div class="taglist">
+      <span class="tag"><button class="tagname">Groceries</button><button class="tagx">&times;</button></span>
+      <span class="tag"><button class="tagname">Household</button><button class="tagx">&times;</button></span>
+      <span class="tag"><button class="tagname">Transport</button><button class="tagx">&times;</button></span>
+      <span class="tag"><button class="tagname">Bills &amp; utilities</button><button class="tagx">&times;</button></span>
+      <span class="tag"><button class="tagname">Eating out</button><button class="tagx">&times;</button></span>
+    </div>
+  </div>
+
+  <div class="card form">
+    <span class="eyebrow">Backup</span>
+    <p class="hint">Receipt photos stay on the device that took them and are never uploaded or exported.</p>
+    <div class="row">
+      <button class="ghost grow">Export JSON</button>
+      <label class="ghost grow center">Import JSON</label>
+    </div>
+    <button class="danger">Erase data on this device</button>
+  </div>
+</main>
+
+<div class="sandbox-label">7 · Tab bar</div>
+<div class="sandbox-frame">
+  <nav class="tabs" style="position:static">
+    <button class="tab active">Expenses</button>
+    <button class="tab">Prices</button>
+    <button class="tab">Insights</button>
+    <button class="tab">Settings</button>
+  </nav>
+</div>
+
+<div class="sandbox-label">8 · Year overview</div>
+<div class="sandbox-frame">
+  <div class="yearbox" style="margin-top:0">
+    <div class="yearhead">
+      <button class="stepper dark">&#8249;</button>
+      <div><span class="eyebrow">Year</span><h2>2026</h2></div>
+      <button class="stepper dark">&#8250;</button>
+    </div>
+    <div class="yeargrid">
+      <button class="ycell"><span class="ylabel">Jan</span><span class="ybar"><i style="height:52%"></i></span><span class="yamt">610.20</span></button>
+      <button class="ycell"><span class="ylabel">Feb</span><span class="ybar"><i style="height:44%"></i></span><span class="yamt">520.00</span></button>
+      <button class="ycell"><span class="ylabel">Mar</span><span class="ybar"><i style="height:66%"></i></span><span class="yamt">780.40</span></button>
+      <button class="ycell"><span class="ylabel">Apr</span><span class="ybar"><i style="height:74%" class="over"></i></span><span class="yamt">940.10</span></button>
+      <button class="ycell"><span class="ylabel">May</span><span class="ybar"><i style="height:52%"></i></span><span class="yamt">612.00</span></button>
+      <button class="ycell"><span class="ylabel">Jun</span><span class="ybar"><i style="height:82%"></i></span><span class="yamt">870.55</span></button>
+      <button class="ycell"><span class="ylabel">Jul</span><span class="ybar"><i style="height:60%"></i></span><span class="yamt">700.00</span></button>
+      <button class="ycell sel now"><span class="ylabel">Aug</span><span class="ybar"><i style="height:70%"></i></span><span class="yamt">743.20</span></button>
+      <button class="ycell empty"><span class="ylabel">Sep</span><span class="ybar"><i style="height:0%"></i></span><span class="yamt">&mdash;</span></button>
+      <button class="ycell empty"><span class="ylabel">Oct</span><span class="ybar"><i style="height:0%"></i></span><span class="yamt">&mdash;</span></button>
+      <button class="ycell empty"><span class="ylabel">Nov</span><span class="ybar"><i style="height:0%"></i></span><span class="yamt">&mdash;</span></button>
+      <button class="ycell empty"><span class="ylabel">Dec</span><span class="ybar"><i style="height:0%"></i></span><span class="yamt">&mdash;</span></button>
+    </div>
+    <div class="yeartotals">
+      <dl class="metrics four">
+        <div><dt>Income</dt><dd>9600.00</dd></div>
+        <div><dt>Loan</dt><dd>2400.00</dd></div>
+        <div><dt>Spent</dt><dd>5776.45</dd></div>
+        <div><dt>Kept</dt><dd class="good">1423.55</dd></div>
+      </dl>
+      <p class="hint">Averaging 722.06 &euro; a month across 8 months with entries.</p>
+    </div>
+    <button class="ghost" style="width:100%;margin-top:14px">Close</button>
+  </div>
+</div>
+
+<div class="sandbox-label">9 · Empty and error states</div>
+<main class="sandbox-frame">
+  <div class="blank">No expenses recorded for this month yet.</div>
+  <div class="card empty"><span class="eyebrow">Stores</span>
+    <p>Tag expenses with a store to see your average basket per shop.</p></div>
+  <div class="toast" style="position:static">Expense saved.</div>
+  <div class="card">
+    <div class="acctrow">
+      <div><div class="cat">arian@tillroll.app</div>
+      <div class="syncstatus offline">Offline &middot; 3 waiting</div></div>
+      <button class="ghost">Sync now</button>
+    </div>
+  </div>
+</main>
+
+</body>
+</html>
