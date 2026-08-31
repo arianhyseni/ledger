@@ -100,3 +100,16 @@ function toast(text) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el.hidden = true; }, 2600);
 }
+
+/* ---------------------------------------------------------
+   The legacy/*.js files are plain classic scripts (not
+   modules) and call these by bare name, expecting globals —
+   exactly how they behaved before app.js became a module.
+--------------------------------------------------------- */
+window.$ = $;
+window.state = state;
+window.MONTHLY = MONTHLY;
+window.bootData = bootData;
+window.switchScreen = switchScreen;
+window.renderActive = renderActive;
+window.toast = toast;
