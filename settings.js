@@ -45,16 +45,7 @@ function initSettings() {
   $('importFile').onchange = doImport;
   $('syncBtn').onclick = () => syncNow();
 
-  $('wipeBtn').onclick = async () => {
-    if (!confirm('Erase every expense, product and price on this device?')) return;
-    if (!confirm('This cannot be undone. Export first if you have not. Continue?')) return;
-    await wipeLocal();
-    await seed();
-    await bootData();
-    await renderActive();
-    await renderSettings();
-    toast('All data erased on this device.');
-  };
+  $('deleteDataBtn').onclick = deleteAllData;
 }
 
 /* ---------- categories & stores ---------- */
@@ -131,6 +122,44 @@ async function doImport(e) {
     toast('Import failed: ' + err.message);
   }
   e.target.value = '';
+}
+
+/* ---------- delete everything ---------- */
+
+async function deleteAllData() {
+  if (!confirm('Delete every expense, product, price and setting?')) return;
+  if (!confirm('This removes them from the server as well as this device, and cannot be undone. Continue?')) return;
+
+  if (CLOUD_ENABLED && currentUser) {
+    if (!navigator.onLine) {
+      toast('You are offline. Connect first, or the server copy would survive.');
+      return;
+    }
+    try {
+      // Children before parents, so nothing trips a foreign key.
+      for (const table of [...SYNC_TABLES].reverse()) {
+        const { error } = await sb.from(table).delete().eq('user_id', currentUser.id);
+        if (error) throw new Error(table + ': ' + error.message);
+      }
+    } catch (err) {
+      toast('Server delete failed: ' + err.message + ' — nothing was removed locally.');
+      return;
+    }
+  }
+
+  await wipeLocal();
+
+  if (CLOUD_ENABLED) {
+    await sb.auth.signOut();
+    location.reload();
+    return;
+  }
+
+  await seed();
+  await bootData();
+  await renderActive();
+  await renderSettings();
+  toast('Everything deleted.');
 }
 
 /* ---------- render ---------- */

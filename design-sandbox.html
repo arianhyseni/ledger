@@ -1044,12 +1044,19 @@ body{padding-bottom:40px}
 
   <div class="card form">
     <span class="eyebrow">Backup</span>
-    <p class="hint">Receipt photos stay on the device that took them and are never uploaded or exported.</p>
+    <p class="hint">Export downloads everything as a file you keep. Import replaces
+      what is on this device with that file. Receipt photos are in neither.</p>
     <div class="row">
       <button class="ghost grow">Export JSON</button>
       <label class="ghost grow center">Import JSON</label>
     </div>
-    <button class="danger">Erase data on this device</button>
+  </div>
+
+  <div class="card form">
+    <span class="eyebrow">Danger zone</span>
+    <p class="hint">Deletes every expense, product, price and setting from the server
+      and from this device. This cannot be undone. Export first.</p>
+    <button class="danger">Delete all my data</button>
   </div>
 </main>
 
