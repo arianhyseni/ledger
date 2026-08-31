@@ -1,70 +1,61 @@
-# Ledger
+# TillRoll
 
-Personal finance + store price tracker. Runs as an installable web app (PWA).
-All data stays in the browser on your device (IndexedDB). No server, no account,
-works with no signal.
+TillRoll is an installable personal-finance and store-price PWA. Local data is
+stored in IndexedDB through Dexie, and optional account sync uses Supabase.
 
-## Files
+## Requirements
 
-    index.html               app shell, all four screens
-    app.css                  styles
-    manifest.webmanifest     install metadata
-    sw.js                    service worker (offline cache)
-    db.js                    schema, seed, money/date helpers, backup
-    js/expenses.js           income, expense entry, budget strip
-    js/prices.js             products, store prices, averages
-    js/insights.js           analytics, trends, saving advice
-    js/settings.js           preferences, categories, stores, backup
-    vendor/dexie.min.js      IndexedDB wrapper (bundled, no CDN)
-    icons/                   app icons
+- Node.js 22 or newer
+- npm 10 or newer
 
-## Run it
+## Development
 
-### 1. Quick test on your PC
+```sh
+npm install
+npm run dev
+```
 
-    cd ledger
-    python3 -m http.server 8080
+Open the local URL printed by Vite (normally <http://127.0.0.1:5173>).
 
-Open http://localhost:8080 — everything works, including install.
+## Production build
 
-`file://` will not work: service workers and the install prompt require
-`http://localhost` or HTTPS.
+```sh
+npm run build
+npm run preview
+```
 
-### 2. Put it on your phone (recommended: GitHub Pages)
+The deployable site is generated in `dist/`. Cloudflare's asset configuration
+also points to this directory.
 
-1. Create a repository, e.g. `ledger`.
-2. Upload the **contents** of this folder to the repository root.
-3. Repository → Settings → Pages → Source: `Deploy from a branch`,
-   branch `main`, folder `/ (root)`. Save.
-4. Wait a minute, then open `https://<username>.github.io/ledger/` in Chrome
-   on your Android phone.
-5. Chrome menu (⋮) → **Add to Home screen** / **Install app**.
+## Project layout
 
-It now opens fullscreen with its own icon and works offline.
+```text
+.
+|-- src/
+|   |-- main.js              Application entry point
+|   `-- styles/              Application styles
+|-- public/
+|   |-- icons/               PWA icons
+|   |-- legacy/
+|   |   |-- core/            Database, auth, sync, and configuration
+|   |   `-- features/        Expenses, prices, insights, and settings
+|   |-- vendor/              Browser-ready third-party libraries
+|   |-- manifest.webmanifest
+|   `-- sw.js                Offline service worker
+|-- docs/                    Design/reference artifacts
+|-- supabase/migrations/     Database migrations
+|-- index.html               Vite HTML entry
+`-- vite.config.js           Development and build configuration
+```
 
-Alternative with no repository: drag the folder onto https://app.netlify.com/drop
-and use the HTTPS URL it gives you.
+The existing feature scripts deliberately remain classic browser scripts so
+the app continues to behave exactly as before. New module-based JavaScript can
+go in `src/`; a future TypeScript migration can begin by renaming `main.js` to
+`main.ts` and then migrating one legacy feature at a time.
 
-## First run
+## Data notes
 
-1. **Settings** — set your currency symbol and savings target (default 20%).
-2. **Settings** — add the stores you shop at.
-3. **Expenses** — enter your monthly income at the top.
-4. Start adding expenses. Attach a receipt photo when useful.
-5. **Prices** — add products, then record what each costs per store.
-   The cheapest store is marked with a tick as soon as there are two prices.
-6. **Insights** — category breakdown, six-month trend, averages, advice.
-
-## Backup
-
-Data lives only in this browser. Clearing site data or uninstalling erases it.
-Settings → **Export JSON** regularly and keep the file somewhere safe.
-Receipt photos are not included in the export — they would make it enormous.
-
-## Notes
-
-- All money is stored as integer cents. Never switch to floats.
-- All dates are `YYYY-MM-DD`; `month` is the first 7 characters.
-- Averages are never stored, only computed at render time.
-- After editing any file, bump `CACHE` in `sw.js` (e.g. `ledger-v3`) or the
-  old version will keep being served from cache.
+- Money values are stored as integer cents.
+- Dates use `YYYY-MM-DD`; a month is the first seven characters.
+- Averages are computed at render time rather than persisted.
+- Export a JSON backup from Settings before clearing browser storage.

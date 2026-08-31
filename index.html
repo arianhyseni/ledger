@@ -6,10 +6,9 @@
 <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#161D25" media="(prefers-color-scheme: dark)">
 <title>TillRoll</title>
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-192.png">
-<link rel="stylesheet" href="app.css">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
 </head>
 <body>
 
@@ -336,17 +335,18 @@
 
 <div class="toast" id="toast" hidden></div>
 
-<script src="config.js"></script>
-<script src="dexie.min.js"></script>
-<script src="supabase.js"></script>
-<script src="db.js"></script>
-<script src="auth.js"></script>
-<script src="sync.js"></script>
-<script src="expenses.js"></script>
-<script src="prices.js"></script>
-<script src="insights.js"></script>
-<script src="settings.js"></script>
-<script src="year.js"></script>
-<script src="app.js"></script>
+<!-- Legacy globals load in dependency order until they are migrated to modules. -->
+<script src="/legacy/core/config.js"></script>
+<script src="/vendor/dexie.min.js"></script>
+<script src="/vendor/supabase.js"></script>
+<script src="/legacy/core/db.js"></script>
+<script src="/legacy/core/auth.js"></script>
+<script src="/legacy/core/sync.js"></script>
+<script src="/legacy/features/expenses.js"></script>
+<script src="/legacy/features/prices.js"></script>
+<script src="/legacy/features/insights.js"></script>
+<script src="/legacy/features/settings.js"></script>
+<script src="/legacy/features/year.js"></script>
+<script type="module" src="/src/main.js"></script>
 </body>
 </html>

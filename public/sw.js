@@ -1,24 +1,23 @@
-const CACHE = 'tillroll-v10';
+const CACHE = 'tillroll-v11';
 
 const SHELL = [
   './',
   './index.html',
-  './app.css',
-  './config.js',
-  './supabase.js',
-  './auth.js',
-  './sync.js',
-  './db.js',
-  './expenses.js',
-  './prices.js',
-  './insights.js',
-  './settings.js',
-  './app.js',
-  './year.js',
-  './dexie.min.js',
+  './legacy/core/config.js',
+  './vendor/supabase.js',
+  './legacy/core/auth.js',
+  './legacy/core/sync.js',
+  './legacy/core/db.js',
+  './legacy/features/expenses.js',
+  './legacy/features/prices.js',
+  './legacy/features/insights.js',
+  './legacy/features/settings.js',
+  './legacy/features/year.js',
+  './vendor/dexie.min.js',
   './manifest.webmanifest',
-  './icon-192.png',
-  './icon-512.png'
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/icon-maskable.png'
 ];
 
 self.addEventListener('install', e => {

@@ -2,6 +2,8 @@
    app.js — shell: state, boot, navigation
 --------------------------------------------------------- */
 
+import './styles/app.css';
+
 const $ = id => document.getElementById(id);
 
 const state = {
@@ -45,8 +47,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (migrated) toast('Existing data on this device was carried over.');
 
-  if ('serviceWorker' in navigator && navigator.serviceWorker.register) {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+  if (import.meta.env.PROD && 'serviceWorker' in navigator && navigator.serviceWorker.register) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
 });
 
