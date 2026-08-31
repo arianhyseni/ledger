@@ -104,11 +104,12 @@ body{
 .topbar{
   position:sticky;top:0;z-index:5;
   display:flex;align-items:center;gap:6px;
-  padding:10px 10px 10px;
+  /* Keep the header content in the same 560px column as <main>,
+     otherwise the month label drifts left on wide screens. */
+  padding:10px max(10px, calc(50% - 280px));
   background:var(--card);color:var(--ink);
   border-bottom:1px solid var(--line);
 }
-.topbar > *{max-width:560px}
 .topbar .eyebrow{color:var(--muted);font-size:11px}
 .navgroup{display:flex;align-items:center;gap:2px;flex:1;min-width:0}
 .tools{display:flex;align-items:center;gap:6px;flex:none}
@@ -660,3 +661,39 @@ button:focus-visible,input:focus-visible,select:focus-visible,label:focus-visibl
   .metrics.four dd{font-size:15px}
   .yeargrid{gap:6px}
 }
+
+/* ---------------- profile ---------------- */
+.profrow{
+  display:flex;align-items:center;gap:12px;
+  margin:10px 0 4px;
+}
+.avatar{
+  width:46px;height:46px;flex:none;
+  display:flex;align-items:center;justify-content:center;
+  border-radius:50%;
+  font-family:var(--mono);font-size:15px;font-weight:600;
+  letter-spacing:.04em;
+  background:var(--accent-wash);color:var(--accent-ink);
+}
+.profmeta{flex:1;min-width:0}
+.profmeta .sub{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+
+.pwbox{
+  margin-top:14px;padding-top:12px;
+  border-top:1px solid var(--hair);
+}
+.pwbox > summary{
+  cursor:pointer;list-style:none;
+  padding:8px 0;
+  font-size:14px;color:var(--accent);
+}
+.pwbox > summary::-webkit-details-marker{display:none}
+.pwbox > summary::after{content:" \203A";font-family:var(--mono)}
+.pwbox[open] > summary::after{content:" \2039"}
+.pwbox .field{margin-top:10px}
+.pwbox button{margin-top:12px;width:100%}
+.hint.ok{color:var(--good)}
+.hint.bad{color:var(--bad)}

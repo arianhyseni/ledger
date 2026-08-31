@@ -210,14 +210,40 @@
 <section class="screen" id="screen-settings" hidden>
 
   <div class="card" id="accountCard" hidden>
-    <span class="eyebrow">Account</span>
-    <div class="acctrow">
-      <div>
-        <div class="cat" id="accountEmail">—</div>
+    <span class="eyebrow">Profile</span>
+
+    <div class="profrow">
+      <span class="avatar" id="avatar">—</span>
+      <div class="profmeta">
+        <div class="cat" id="accountName">—</div>
+        <div class="sub" id="accountEmail">—</div>
         <div class="syncstatus" id="syncStatus"></div>
       </div>
       <button class="ghost" id="syncBtn" type="button">Sync now</button>
     </div>
+
+    <div class="field">
+      <label for="profName">Display name</label>
+      <div class="row">
+        <input type="text" id="profName" class="grow" placeholder="Your name">
+        <button class="ghost" id="saveProfile" type="button">Save</button>
+      </div>
+    </div>
+
+    <details class="pwbox">
+      <summary>Change password</summary>
+      <div class="field">
+        <label for="pw1">New password</label>
+        <input type="password" id="pw1" minlength="6" autocomplete="new-password">
+      </div>
+      <div class="field">
+        <label for="pw2">Repeat it</label>
+        <input type="password" id="pw2" minlength="6" autocomplete="new-password">
+      </div>
+      <button class="ghost" id="changePw" type="button">Update password</button>
+      <p class="hint" id="pwMsg" hidden></p>
+    </details>
+
     <button class="linkdanger" id="signOutBtn" type="button">Sign out</button>
   </div>
 

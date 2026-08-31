@@ -19,6 +19,8 @@ function initAuth() {
   $('authToggle').onclick = toggleAuthMode;
   $('signOutBtn').onclick = signOut;
   $('topSignOut').onclick = signOut;
+  $('saveProfile').onclick = saveProfileName;
+  $('changePw').onclick = changePassword;
 }
 
 let authMode = 'signin';
@@ -141,11 +143,114 @@ function showApp(visible) {
   $('topSignOut').hidden = !(visible && CLOUD_ENABLED);
 }
 
+/* ---------- profile ---------- */
+
+let profile = null;
+
+// Two letters from the name, or the first two of the email.
+function initialsFor(name, email) {
+  const src = (name || '').trim();
+  if (src) {
+    const parts = src.split(/\s+/).filter(Boolean);
+    return (parts.length > 1
+      ? parts[0][0] + parts[parts.length - 1][0]
+      : parts[0].slice(0, 2)).toUpperCase();
+  }
+  return (email || '?').slice(0, 2).toUpperCase();
+}
+
+// A stable colour per account, so the avatar is recognisable
+// without anyone having to upload anything.
+function avatarHue(seed) {
+  let h = 0;
+  for (const ch of String(seed)) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  return h;
+}
+
+async function loadProfile() {
+  if (!currentUser) return null;
+  try {
+    const { data, error } = await sb
+      .from('profiles').select('*').eq('id', currentUser.id).single();
+    if (error) throw error;
+    profile = data;
+  } catch (err) {
+    // Offline, or the row has not replicated yet — fall back to the
+    // session, which already carries the signup metadata.
+    profile = {
+      id: currentUser.id,
+      email: currentUser.email,
+      full_name: (currentUser.user_metadata || {}).full_name || ''
+    };
+  }
+  return profile;
+}
+
+async function saveProfileName() {
+  const full_name = $('profName').value.trim();
+  $('saveProfile').disabled = true;
+  try {
+    const { error } = await sb
+      .from('profiles').update({ full_name }).eq('id', currentUser.id);
+    if (error) throw error;
+    profile.full_name = full_name;
+    paintProfile();
+    toast('Name updated.');
+  } catch (err) {
+    toast('Could not save: ' + (err.message || 'no connection'));
+  } finally {
+    $('saveProfile').disabled = false;
+  }
+}
+
+async function changePassword() {
+  const a = $('pw1').value, b = $('pw2').value;
+  const msg = (text, tone) => {
+    const el = $('pwMsg');
+    el.textContent = text;
+    el.hidden = !text;
+    el.className = 'hint ' + (tone || '');
+  };
+
+  if (a.length < 6)  { msg('Password must be at least 6 characters.', 'bad'); return; }
+  if (a !== b)       { msg('The two passwords do not match.', 'bad'); return; }
+
+  $('changePw').disabled = true;
+  msg('Working…');
+  try {
+    const { error } = await sb.auth.updateUser({ password: a });
+    if (error) throw error;
+    $('pw1').value = '';
+    $('pw2').value = '';
+    msg('Password changed. It applies on your next sign in.', 'ok');
+  } catch (err) {
+    msg(friendlyAuthError(err), 'bad');
+  } finally {
+    $('changePw').disabled = false;
+  }
+}
+
+function paintProfile() {
+  const name  = profile ? (profile.full_name || '') : '';
+  const email = currentUser ? currentUser.email : '';
+
+  $('accountName').textContent  = name || 'No name set';
+  $('accountEmail').textContent = email;
+  $('profName').value = name;
+
+  const av = $('avatar');
+  av.textContent = initialsFor(name, email);
+  const hue = avatarHue(currentUser ? currentUser.id : email);
+  av.style.background = `hsl(${hue} 42% 92%)`;
+  av.style.color = `hsl(${hue} 55% 28%)`;
+}
+
 async function renderAccount() {
   if (!CLOUD_ENABLED) {
     $('accountCard').hidden = true;
     return;
   }
   $('accountCard').hidden = false;
-  $('accountEmail').textContent = currentUser ? currentUser.email : '—';
+  await loadProfile();
+  paintProfile();
 }
