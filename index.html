@@ -12,16 +12,48 @@
 </head>
 <body>
 
-<header class="topbar">
+<div id="bootMsg" class="boot">Loading…</div>
+
+<!-- ============ AUTH ============ -->
+<section class="screen auth" id="screen-auth" hidden>
+  <div class="authbox">
+    <div class="brand">
+      <span class="eyebrow">Ledger</span>
+      <h1 id="authTitle">Sign in</h1>
+    </div>
+
+    <form class="form" id="authForm" autocomplete="on">
+      <div class="field" id="nameField" hidden>
+        <label for="authName">Name</label>
+        <input type="text" id="authName" autocomplete="name">
+      </div>
+      <div class="field">
+        <label for="authEmail">Email</label>
+        <input type="email" id="authEmail" autocomplete="email" required>
+      </div>
+      <div class="field">
+        <label for="authPassword">Password</label>
+        <input type="password" id="authPassword" autocomplete="current-password" required minlength="6">
+      </div>
+      <button type="submit" class="primary" id="authSubmit">Sign in</button>
+    </form>
+
+    <p class="authmsg" id="authMsg" hidden></p>
+    <button class="linkbtn" id="authToggle">No account? Create one</button>
+  </div>
+</section>
+
+<header class="topbar" id="topbar" hidden>
   <button class="stepper" id="prevMonth" aria-label="Previous month">&#8249;</button>
   <div class="monthbox">
     <span class="eyebrow" id="topEyebrow">Month</span>
     <h1 id="monthLabel">—</h1>
   </div>
+  <span class="badge" id="syncBadge" hidden></span>
   <button class="stepper" id="nextMonth" aria-label="Next month">&#8250;</button>
 </header>
 
-<main>
+<main id="appMain" hidden>
 
 <!-- ============ EXPENSES ============ -->
 <section class="screen" id="screen-expenses">
@@ -156,6 +188,18 @@
 <!-- ============ SETTINGS ============ -->
 <section class="screen" id="screen-settings" hidden>
 
+  <div class="card" id="accountCard" hidden>
+    <span class="eyebrow">Account</span>
+    <div class="acctrow">
+      <div>
+        <div class="cat" id="accountEmail">—</div>
+        <div class="syncstatus" id="syncStatus"></div>
+      </div>
+      <button class="ghost" id="syncBtn" type="button">Sync now</button>
+    </div>
+    <button class="linkdanger" id="signOutBtn" type="button">Sign out</button>
+  </div>
+
   <div class="card form">
     <span class="eyebrow">Preferences</span>
     <div class="row">
@@ -194,20 +238,20 @@
 
   <div class="card form">
     <span class="eyebrow">Backup</span>
-    <p class="hint">Your data lives only in this browser. Clearing site data erases it. Export regularly.</p>
+    <p class="hint">Receipt photos stay on the device that took them and are never uploaded or exported.</p>
     <div class="row">
       <button class="ghost grow" id="exportBtn" type="button">Export JSON</button>
       <label class="ghost grow center" for="importFile">Import JSON
         <input type="file" id="importFile" accept="application/json" hidden>
       </label>
     </div>
-    <button class="danger" id="wipeBtn" type="button">Erase all data</button>
+    <button class="danger" id="wipeBtn" type="button">Erase data on this device</button>
   </div>
 </section>
 
 </main>
 
-<nav class="tabs">
+<nav class="tabs" id="tabs" hidden>
   <button class="tab active" data-screen="expenses">Expenses</button>
   <button class="tab" data-screen="prices">Prices</button>
   <button class="tab" data-screen="insights">Insights</button>
@@ -221,8 +265,12 @@
 
 <div class="toast" id="toast" hidden></div>
 
+<script src="config.js"></script>
 <script src="dexie.min.js"></script>
+<script src="supabase.js"></script>
 <script src="db.js"></script>
+<script src="auth.js"></script>
+<script src="sync.js"></script>
 <script src="expenses.js"></script>
 <script src="prices.js"></script>
 <script src="insights.js"></script>

@@ -1,5 +1,5 @@
 /* ---------------------------------------------------------
-   settings.js — preferences, categories, stores, backup
+   settings.js — preferences, categories, stores, backup, account
 --------------------------------------------------------- */
 
 function initSettings() {
@@ -8,6 +8,7 @@ function initSettings() {
     await setSetting('currency', v);
     window.CURRENCY = v;
     await renderActive();
+    scheduleSync();
   };
 
   $('setTarget').onchange = async () => {
@@ -15,38 +16,44 @@ function initSettings() {
     await setSetting('savingsTarget', v);
     window.SAVINGS_TARGET = v;
     $('setTarget').value = v;
+    scheduleSync();
   };
 
   $('addCategory').onclick = async () => {
     const name = $('newCategory').value.trim();
     if (!name) return;
-    await db.categories.add({ name, type: 'expense', monthlyBudget: 0 });
+    await db.categories.put(stamp({
+      id: uuid(), name, type: 'expense', monthly_budget: 0
+    }));
     $('newCategory').value = '';
     await fillCategorySelects();
     await renderSettings();
+    scheduleSync();
   };
 
   $('addStore').onclick = async () => {
     const name = $('newStore').value.trim();
     if (!name) return;
-    await db.stores.add({ name, location: '', note: '' });
+    await db.stores.put(stamp({ id: uuid(), name, location: '', note: '' }));
     $('newStore').value = '';
     await fillStoreLists();
     await renderSettings();
+    scheduleSync();
   };
 
   $('exportBtn').onclick = doExport;
   $('importFile').onchange = doImport;
+  $('syncBtn').onclick = () => syncNow();
 
   $('wipeBtn').onclick = async () => {
     if (!confirm('Erase every expense, product and price on this device?')) return;
     if (!confirm('This cannot be undone. Export first if you have not. Continue?')) return;
-    await wipeAll();
+    await wipeLocal();
     await seed();
     await bootData();
     await renderActive();
     await renderSettings();
-    toast('All data erased.');
+    toast('All data erased on this device.');
   };
 }
 
@@ -55,34 +62,42 @@ function initSettings() {
 async function renameCategory(id, current) {
   const name = prompt('Rename category', current);
   if (!name || !name.trim()) return;
-  await db.categories.update(id, { name: name.trim() });
+  const row = await db.categories.get(id);
+  await db.categories.put(stamp({ ...row, name: name.trim() }));
   await fillCategorySelects();
   await renderSettings();
+  scheduleSync();
 }
 
 async function removeCategory(id) {
-  const used = await db.expenses.where('categoryId').equals(id).count();
+  const used = (await liveWhere('expenses', 'category_id', id)).length;
   if (used) { toast(`In use by ${used} expenses. Rename it instead.`); return; }
-  await db.categories.delete(id);
+  const row = await db.categories.get(id);
+  await db.categories.put(stamp({ ...row, deleted: 1 }));
   await fillCategorySelects();
   await renderSettings();
+  scheduleSync();
 }
 
 async function renameStore(id, current) {
   const name = prompt('Rename store', current);
   if (!name || !name.trim()) return;
-  await db.stores.update(id, { name: name.trim() });
+  const row = await db.stores.get(id);
+  await db.stores.put(stamp({ ...row, name: name.trim() }));
   await fillStoreLists();
   await renderSettings();
+  scheduleSync();
 }
 
 async function removeStore(id) {
-  const used = await db.expenses.where('storeId').equals(id).count()
-             + await db.prices.where('storeId').equals(id).count();
+  const used = (await liveWhere('expenses', 'store_id', id)).length
+             + (await liveWhere('prices', 'store_id', id)).length;
   if (used) { toast(`In use by ${used} records. Rename it instead.`); return; }
-  await db.stores.delete(id);
+  const row = await db.stores.get(id);
+  await db.stores.put(stamp({ ...row, deleted: 1 }));
   await fillStoreLists();
   await renderSettings();
+  scheduleSync();
 }
 
 /* ---------- backup ---------- */
@@ -111,6 +126,7 @@ async function doImport(e) {
     await renderActive();
     await renderSettings();
     toast('Backup restored.');
+    scheduleSync(500);
   } catch (err) {
     toast('Import failed: ' + err.message);
   }
@@ -123,22 +139,23 @@ async function renderSettings() {
   $('setCurrency').value = window.CURRENCY;
   $('setTarget').value = window.SAVINGS_TARGET;
 
-  const [cats, stores] = await Promise.all([
-    db.categories.orderBy('name').toArray(),
-    db.stores.orderBy('name').toArray()
-  ]);
+  await renderAccount();
+  if (CLOUD_ENABLED && currentUser) await setSyncStatus('ok');
+
+  const cats   = (await live('categories')).sort((a, b) => a.name.localeCompare(b.name));
+  const stores = (await live('stores')).sort((a, b) => a.name.localeCompare(b.name));
 
   $('categoryList').innerHTML = cats.map(c => `
     <span class="tag">
-      <button class="tagname" onclick="renameCategory(${c.id}, '${escapeAttr(c.name)}')">${escapeHtml(c.name)}</button>
-      <button class="tagx" onclick="removeCategory(${c.id})" aria-label="Remove">&times;</button>
+      <button class="tagname" onclick="renameCategory('${c.id}', '${escapeAttr(c.name)}')">${escapeHtml(c.name)}</button>
+      <button class="tagx" onclick="removeCategory('${c.id}')" aria-label="Remove">&times;</button>
     </span>`).join('');
 
   $('storeManageList').innerHTML = stores.length
     ? stores.map(s => `
       <span class="tag">
-        <button class="tagname" onclick="renameStore(${s.id}, '${escapeAttr(s.name)}')">${escapeHtml(s.name)}</button>
-        <button class="tagx" onclick="removeStore(${s.id})" aria-label="Remove">&times;</button>
+        <button class="tagname" onclick="renameStore('${s.id}', '${escapeAttr(s.name)}')">${escapeHtml(s.name)}</button>
+        <button class="tagx" onclick="removeStore('${s.id}')" aria-label="Remove">&times;</button>
       </span>`).join('')
     : '<p class="hint">No stores yet. Add the shops you use, or just type a store name on an expense.</p>';
 }

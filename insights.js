@@ -1,7 +1,6 @@
 /* ---------------------------------------------------------
    insights.js — analytics, averages and saving advice
-   Every number here is derived at render time from expenses,
-   income and prices. Nothing is cached.
+   Every number is derived at render time. Nothing is cached.
 --------------------------------------------------------- */
 
 function lastMonths(endMonth, n) {
@@ -14,29 +13,29 @@ async function renderInsights() {
   const window6  = lastMonths(state.month, 6);
   const previous = window6.slice(0, 5);
 
-  const [expenses, incomes, cats, stores] = await Promise.all([
-    db.expenses.where('month').anyOf(window6).toArray(),
-    db.income.where('month').anyOf(window6).toArray(),
-    db.categories.toArray(),
-    db.stores.toArray()
+  const [allExpenses, allIncome, cats, stores] = await Promise.all([
+    live('expenses'), live('income'), live('categories'), live('stores')
   ]);
+
+  const expenses = allExpenses.filter(e => window6.includes(e.month));
+  const incomes  = allIncome.filter(i => window6.includes(i.month));
 
   const catName   = Object.fromEntries(cats.map(c => [c.id, c.name]));
   const storeName = Object.fromEntries(stores.map(s => [s.id, s.name]));
   const incomeOf  = Object.fromEntries(incomes.map(i => [i.month, i.amount]));
 
-  const cur      = expenses.filter(e => e.month === state.month);
-  const spent    = cur.reduce((s, e) => s + e.amount, 0);
-  const income   = incomeOf[state.month] || 0;
-  const elapsed  = Math.max(daysElapsed(state.month), 1);
-  const total    = daysInMonth(state.month);
-  const avgDay   = spent / elapsed;
+  const cur       = expenses.filter(e => e.month === state.month);
+  const spent     = cur.reduce((s, e) => s + e.amount, 0);
+  const income    = incomeOf[state.month] || 0;
+  const elapsed   = Math.max(daysElapsed(state.month), 1);
+  const total     = daysInMonth(state.month);
+  const avgDay    = spent / elapsed;
   const projected = Math.round(avgDay * total);
-  const target   = Number(window.SAVINGS_TARGET || 20);
+  const target    = Number(window.SAVINGS_TARGET || 20);
 
   /* ---- category breakdown vs baseline ---- */
   const curByCat = {};
-  for (const e of cur) curByCat[e.categoryId] = (curByCat[e.categoryId] || 0) + e.amount;
+  for (const e of cur) curByCat[e.category_id] = (curByCat[e.category_id] || 0) + e.amount;
 
   const prevMonthsWithData = new Set(
     expenses.filter(e => previous.includes(e.month)).map(e => e.month)
@@ -45,13 +44,15 @@ async function renderInsights() {
 
   const baseByCat = {};
   for (const e of expenses) {
-    if (previous.includes(e.month)) baseByCat[e.categoryId] = (baseByCat[e.categoryId] || 0) + e.amount;
+    if (previous.includes(e.month)) {
+      baseByCat[e.category_id] = (baseByCat[e.category_id] || 0) + e.amount;
+    }
   }
   for (const k in baseByCat) baseByCat[k] = Math.round(baseByCat[k] / prevCount);
 
   const breakdown = Object.entries(curByCat)
     .map(([id, amount]) => ({
-      id: Number(id),
+      id,
       name: catName[id] || 'Uncategorised',
       amount,
       share: spent ? amount / spent * 100 : 0,
@@ -62,8 +63,8 @@ async function renderInsights() {
   /* ---- store averages ---- */
   const byStore = {};
   for (const e of cur) {
-    if (!e.storeId) continue;
-    (byStore[e.storeId] ||= []).push(e.amount);
+    if (!e.store_id) continue;
+    (byStore[e.store_id] ||= []).push(e.amount);
   }
   const storeStats = Object.entries(byStore).map(([id, list]) => ({
     name: storeName[id] || 'Unknown',
@@ -79,7 +80,6 @@ async function renderInsights() {
     income: incomeOf[m] || 0
   }));
 
-  /* ---- render ---- */
   $('insightsBody').innerHTML = [
     headlineCard(income, spent, projected, avgDay, target),
     breakdownCard(breakdown, spent),
@@ -258,7 +258,6 @@ async function buildAdvice(ctx) {
     }
   }
 
-  // Potential saving from always buying at the cheapest recorded store.
   const saving = await cheapestStoreSaving();
   if (saving.total > 0) {
     out.push({ tone: 'ok',
@@ -275,9 +274,9 @@ async function buildAdvice(ctx) {
 }
 
 async function cheapestStoreSaving() {
-  const prices = await db.prices.toArray();
+  const prices = await live('prices');
   const byProduct = {};
-  for (const r of prices) (byProduct[r.productId] ||= []).push(r);
+  for (const r of prices) (byProduct[r.product_id] ||= []).push(r);
 
   let total = 0, products = 0;
   for (const rows of Object.values(byProduct)) {

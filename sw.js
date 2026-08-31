@@ -1,9 +1,13 @@
-const CACHE = 'ledger-v4';
+const CACHE = 'ledger-v5';
 
 const SHELL = [
   './',
   './index.html',
   './app.css',
+  './config.js',
+  './supabase.js',
+  './auth.js',
+  './sync.js',
   './db.js',
   './expenses.js',
   './prices.js',

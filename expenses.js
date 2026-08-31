@@ -21,36 +21,47 @@ function initExpenses() {
 /* ---------- lookups ---------- */
 
 async function fillCategorySelects() {
-  const cats = await db.categories.orderBy('name').toArray();
+  const cats = (await live('categories')).sort((a, b) => a.name.localeCompare(b.name));
   const html = cats.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
   $('exCategory').innerHTML = html;
   $('pCategory').innerHTML = html;
 }
 
 async function fillStoreLists() {
-  const stores = await db.stores.orderBy('name').toArray();
+  const stores = (await live('stores')).sort((a, b) => a.name.localeCompare(b.name));
   $('storeList').innerHTML = stores.map(s => `<option value="${escapeHtml(s.name)}">`).join('');
 }
 
 async function resolveStore(name) {
   const clean = name.trim();
   if (!clean) return null;
-  const found = await db.stores
-    .filter(s => s.name.toLowerCase() === clean.toLowerCase()).first();
+
+  const stores = await live('stores');
+  const found = stores.find(s => s.name.toLowerCase() === clean.toLowerCase());
   if (found) return found.id;
-  const id = await db.stores.add({ name: clean, location: '', note: '' });
+
+  const row = stamp({ id: uuid(), name: clean, location: '', note: '' });
+  await db.stores.put(row);
   await fillStoreLists();
-  return id;
+  return row.id;
 }
 
 /* ---------- income ---------- */
 
 async function saveIncome() {
-  const cents = toCents($('incomeInput').value);
-  const row = await db.income.where('month').equals(state.month).first();
-  if (row) await db.income.update(row.id, { amount: cents });
-  else     await db.income.add({ month: state.month, amount: cents, source: '', note: '' });
+  const amount = toCents($('incomeInput').value);
+  const rows = await liveWhere('income', 'month', state.month);
+
+  if (rows.length) {
+    await db.income.put(stamp({ ...rows[0], amount }));
+  } else {
+    await db.income.put(stamp({
+      id: uuid(), month: state.month, amount, source: '', note: ''
+    }));
+  }
+
   await renderExpenses();
+  scheduleSync();
 }
 
 /* ---------- expense CRUD ---------- */
@@ -62,20 +73,24 @@ async function saveExpense(e) {
   if (amount <= 0) { toast('Enter an amount above zero.'); return; }
 
   const date = $('exDate').value || today();
-  const storeId = await resolveStore($('exStore').value);
+  const store_id = await resolveStore($('exStore').value);
+  const id = uuid();
 
-  const expenseId = await db.expenses.add({
+  await db.expenses.put(stamp({
+    id,
     date,
     month: monthOf(date),
     amount,
-    categoryId: Number($('exCategory').value),
-    storeId,
+    category_id: $('exCategory').value || null,
+    store_id,
     note: $('exNote').value.trim(),
-    hasReceipt: !!pendingPhoto
-  });
+    has_receipt: !!pendingPhoto
+  }));
 
   if (pendingPhoto) {
-    await db.receipts.add({ expenseId, blob: pendingPhoto, createdAt: new Date().toISOString() });
+    await db.receipts.put({
+      id: uuid(), expense_id: id, blob: pendingPhoto, created_at: now()
+    });
   }
 
   // Keep date and store — expenses usually come in batches.
@@ -90,23 +105,33 @@ async function saveExpense(e) {
   await renderActive();
   $('exAmount').focus();
   toast('Expense saved.');
+  scheduleSync();
 }
 
 async function deleteExpense(id) {
   if (!confirm('Delete this expense?')) return;
-  await db.transaction('rw', db.expenses, db.expenseItems, db.receipts, async () => {
-    await db.expenses.delete(id);
-    await db.expenseItems.where('expenseId').equals(id).delete();
-    await db.receipts.where('expenseId').equals(id).delete();
-  });
+
+  const row = await db.expenses.get(id);
+  if (!row) return;
+
+  // Soft delete, so the removal reaches other devices.
+  await db.expenses.put(stamp({ ...row, deleted: 1 }));
+
+  const items = await db.expense_items.where('expense_id').equals(id).toArray();
+  for (const i of items) await db.expense_items.put(stamp({ ...i, deleted: 1 }));
+
+  // Photos are local-only, so they go for good.
+  await db.receipts.where('expense_id').equals(id).delete();
+
   await renderExpenses();
+  scheduleSync();
 }
 
 /* ---------- receipt viewer ---------- */
 
 async function openReceipt(expenseId) {
-  const r = await db.receipts.where('expenseId').equals(expenseId).first();
-  if (!r) { toast('No receipt stored.'); return; }
+  const r = await db.receipts.where('expense_id').equals(expenseId).first();
+  if (!r) { toast('Receipt is stored on the device it was taken on.'); return; }
   $('viewerImg').src = URL.createObjectURL(r.blob);
   $('viewer').hidden = false;
 }
@@ -120,17 +145,17 @@ function closeViewer() {
 /* ---------- render ---------- */
 
 async function renderExpenses() {
-  const [incomeRow, expenses, cats, stores] = await Promise.all([
-    db.income.where('month').equals(state.month).first(),
-    db.expenses.where('month').equals(state.month).toArray(),
-    db.categories.toArray(),
-    db.stores.toArray()
+  const [incomeRows, expenses, cats, stores] = await Promise.all([
+    liveWhere('income', 'month', state.month),
+    liveWhere('expenses', 'month', state.month),
+    live('categories'),
+    live('stores')
   ]);
 
   const catName   = Object.fromEntries(cats.map(c => [c.id, c.name]));
   const storeName = Object.fromEntries(stores.map(s => [s.id, s.name]));
 
-  const income = incomeRow ? incomeRow.amount : 0;
+  const income = incomeRows.length ? incomeRows[0].amount : 0;
   const spent  = expenses.reduce((s, e) => s + e.amount, 0);
 
   $('incomeInput').value = income ? fromCents(income) : '';
@@ -179,7 +204,8 @@ function renderExpenseList(expenses, catName, storeName) {
     return;
   }
 
-  expenses.sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+  expenses.sort((a, b) =>
+    b.date.localeCompare(a.date) || (b.updated_at || '').localeCompare(a.updated_at || ''));
 
   const byDay = {};
   for (const e of expenses) (byDay[e.date] ||= []).push(e);
@@ -187,16 +213,16 @@ function renderExpenseList(expenses, catName, storeName) {
   list.innerHTML = Object.entries(byDay).map(([date, items]) => {
     const dayTotal = items.reduce((s, e) => s + e.amount, 0);
     const rows = items.map(e => {
-      const bits = [storeName[e.storeId], e.note].filter(Boolean).join(' \u00B7 ');
+      const bits = [storeName[e.store_id], e.note].filter(Boolean).join(' \u00B7 ');
       return `
         <div class="entry">
           <div class="meta">
-            <div class="cat">${escapeHtml(catName[e.categoryId] || 'Uncategorised')}</div>
+            <div class="cat">${escapeHtml(catName[e.category_id] || 'Uncategorised')}</div>
             ${bits ? `<div class="sub">${escapeHtml(bits)}</div>` : ''}
           </div>
-          ${e.hasReceipt ? `<button class="chip" onclick="openReceipt(${e.id})">receipt</button>` : ''}
+          ${e.has_receipt ? `<button class="chip" onclick="openReceipt('${e.id}')">receipt</button>` : ''}
           <div class="amt">${fromCents(e.amount)}</div>
-          <button class="del" onclick="deleteExpense(${e.id})" aria-label="Delete">&times;</button>
+          <button class="del" onclick="deleteExpense('${e.id}')" aria-label="Delete">&times;</button>
         </div>`;
     }).join('');
 

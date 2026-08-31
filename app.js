@@ -9,16 +9,14 @@ const state = {
   screen: 'expenses'
 };
 
-// Screens that are tied to a specific month.
 const MONTHLY = ['expenses', 'insights'];
 
 document.addEventListener('DOMContentLoaded', async () => {
-  await seed();
-  await bootData();
-
+  initAuth();
   initExpenses();
   initPrices();
   initSettings();
+  initSync();
 
   $('prevMonth').onclick = () => { state.month = shiftMonth(state.month, -1); renderActive(); };
   $('nextMonth').onclick = () => { state.month = shiftMonth(state.month,  1); renderActive(); };
@@ -27,9 +25,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     tab.onclick = () => switchScreen(tab.dataset.screen);
   });
 
-  await renderActive();
+  const migrated = await migrateLegacy();
+  $('bootMsg').hidden = true;
 
-  if ('serviceWorker' in navigator) {
+  if (CLOUD_ENABLED) {
+    const restored = await restoreSession();
+    if (!restored) {
+      showApp(false);
+      return;                       // wait for sign in
+    }
+  } else {
+    // No key configured — run exactly as the offline-only version.
+    await seed();
+    await bootData();
+    showApp(true);
+    await renderActive();
+  }
+
+  if (migrated) toast('Existing data on this device was carried over.');
+
+  if ('serviceWorker' in navigator && navigator.serviceWorker.register) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 });
@@ -44,13 +59,18 @@ async function bootData() {
 
 function switchScreen(name) {
   state.screen = name;
-  document.querySelectorAll('.screen').forEach(s => s.hidden = (s.id !== 'screen-' + name));
+  document.querySelectorAll('.screen').forEach(s => {
+    if (s.id === 'screen-auth') return;
+    s.hidden = (s.id !== 'screen-' + name);
+  });
   document.querySelectorAll('.tab').forEach(t =>
     t.classList.toggle('active', t.dataset.screen === name));
   renderActive();
 }
 
 async function renderActive() {
+  if (CLOUD_ENABLED && !currentUser) return;
+
   const monthly = MONTHLY.includes(state.screen);
 
   $('prevMonth').hidden = !monthly;

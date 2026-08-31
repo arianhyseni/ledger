@@ -2,7 +2,7 @@
    prices.js — products, store prices, averages, cheapest store
 --------------------------------------------------------- */
 
-let openProductId = null;   // which product row is expanded
+let openProductId = null;
 
 function initPrices() {
   $('prodSearch').oninput = () => renderPrices();
@@ -21,30 +21,37 @@ async function saveProduct(e) {
   const name = $('pName').value.trim();
   if (!name) return;
 
-  const id = await db.products.add({
+  const id = uuid();
+  await db.products.put(stamp({
+    id,
     name,
-    categoryId: Number($('pCategory').value) || null,
+    category_id: $('pCategory').value || null,
     unit: $('pUnit').value,
     barcode: $('pBarcode').value.trim(),
     note: ''
-  });
+  }));
 
   $('productForm').reset();
   $('productForm').hidden = true;
   openProductId = id;
   await renderPrices();
   toast('Product added. Now record a price.');
+  scheduleSync();
 }
 
 async function deleteProduct(id) {
-  const n = await db.prices.where('productId').equals(id).count();
-  if (!confirm(n ? `Delete this product and its ${n} price records?` : 'Delete this product?')) return;
-  await db.transaction('rw', db.products, db.prices, async () => {
-    await db.products.delete(id);
-    await db.prices.where('productId').equals(id).delete();
-  });
+  const rows = await liveWhere('prices', 'product_id', id);
+  if (!confirm(rows.length
+      ? `Delete this product and its ${rows.length} price records?`
+      : 'Delete this product?')) return;
+
+  const product = await db.products.get(id);
+  if (product) await db.products.put(stamp({ ...product, deleted: 1 }));
+  for (const r of rows) await db.prices.put(stamp({ ...r, deleted: 1 }));
+
   openProductId = null;
   await renderPrices();
+  scheduleSync();
 }
 
 function toggleProduct(id) {
@@ -56,23 +63,31 @@ function toggleProduct(id) {
 
 async function savePrice(productId) {
   const price = toCents($('np_' + productId).value);
-  const storeId = Number($('ns_' + productId).value);
+  const store_id = $('ns_' + productId).value;
   const date = $('nd_' + productId).value || today();
 
-  if (price <= 0)  { toast('Enter a price above zero.'); return; }
-  if (!storeId)    { toast('Pick a store first — add stores in Settings.'); return; }
+  if (price <= 0) { toast('Enter a price above zero.'); return; }
+  if (!store_id)  { toast('Pick a store first — add stores in Settings.'); return; }
 
-  await db.prices.add({
-    productId, storeId, price, date,
-    isPromo: $('npr_' + productId).checked
-  });
+  await db.prices.put(stamp({
+    id: uuid(),
+    product_id: productId,
+    store_id,
+    price,
+    date,
+    is_promo: $('npr_' + productId).checked
+  }));
+
   await renderPrices();
   toast('Price recorded.');
+  scheduleSync();
 }
 
 async function deletePrice(id) {
-  await db.prices.delete(id);
+  const row = await db.prices.get(id);
+  if (row) await db.prices.put(stamp({ ...row, deleted: 1 }));
   await renderPrices();
+  scheduleSync();
 }
 
 /* ---------- stats ---------- */
@@ -80,14 +95,13 @@ async function deletePrice(id) {
 
 function statsByStore(rows) {
   const byStore = {};
-  for (const r of rows) {
-    (byStore[r.storeId] ||= []).push(r);
-  }
-  return Object.entries(byStore).map(([storeId, list]) => {
+  for (const r of rows) (byStore[r.store_id] ||= []).push(r);
+
+  return Object.entries(byStore).map(([store_id, list]) => {
     list.sort((a, b) => b.date.localeCompare(a.date));
     const sum = list.reduce((s, r) => s + r.price, 0);
     return {
-      storeId: Number(storeId),
+      store_id,
       count: list.length,
       latest: list[0].price,
       latestDate: list[0].date,
@@ -100,11 +114,11 @@ function statsByStore(rows) {
 
 async function renderPrices() {
   const [products, prices, stores, cats] = await Promise.all([
-    db.products.orderBy('name').toArray(),
-    db.prices.toArray(),
-    db.stores.orderBy('name').toArray(),
-    db.categories.toArray()
+    live('products'), live('prices'), live('stores'), live('categories')
   ]);
+
+  products.sort((a, b) => a.name.localeCompare(b.name));
+  stores.sort((a, b) => a.name.localeCompare(b.name));
 
   const storeName = Object.fromEntries(stores.map(s => [s.id, s.name]));
   const catName   = Object.fromEntries(cats.map(c => [c.id, c.name]));
@@ -128,17 +142,18 @@ async function renderPrices() {
     return;
   }
 
-  const storeOptions = stores.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  const storeOptions = stores
+    .map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
 
   list.innerHTML = shown.map(p => {
-    const rows  = prices.filter(r => r.productId === p.id);
-    const stats = statsByStore(rows);
-    const best  = stats[0];
+    const rows   = prices.filter(r => r.product_id === p.id);
+    const stats  = statsByStore(rows);
+    const best   = stats[0];
     const spread = stats.length > 1 ? stats[stats.length - 1].avg - stats[0].avg : 0;
-    const open  = openProductId === p.id;
+    const open   = openProductId === p.id;
 
     const summary = best
-      ? `${money(best.avg)} avg at ${escapeHtml(storeName[best.storeId] || '—')}`
+      ? `${money(best.avg)} avg at ${escapeHtml(storeName[best.store_id] || '—')}`
       : 'No prices recorded';
 
     const table = stats.length ? `
@@ -147,15 +162,15 @@ async function renderPrices() {
         <tbody>
           ${stats.map((s, i) => `
             <tr class="${i === 0 ? 'best' : ''}">
-              <td>${escapeHtml(storeName[s.storeId] || 'Unknown')}</td>
+              <td>${escapeHtml(storeName[s.store_id] || 'Unknown')}</td>
               <td class="num">${fromCents(s.latest)}</td>
               <td class="num">${fromCents(s.avg)}</td>
               <td class="num dim">${s.count}</td>
             </tr>`).join('')}
         </tbody>
       </table>
-      ${spread > 0 ? `<p class="hint">Buying at ${escapeHtml(storeName[best.storeId])} saves
-        ${money(spread)} per ${p.unit} versus the dearest store on record.</p>` : ''}
+      ${spread > 0 ? `<p class="hint">Buying at ${escapeHtml(storeName[best.store_id])} saves
+        ${money(spread)} per ${escapeHtml(p.unit || 'pcs')} versus the dearest store on record.</p>` : ''}
     ` : '<p class="hint">No prices yet for this product.</p>';
 
     const history = rows.length ? `
@@ -163,10 +178,10 @@ async function renderPrices() {
         ${rows.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8).map(r => `
           <div class="phrow">
             <span class="dim">${r.date}</span>
-            <span>${escapeHtml(storeName[r.storeId] || '—')}</span>
-            ${r.isPromo ? '<span class="chip">promo</span>' : ''}
+            <span>${escapeHtml(storeName[r.store_id] || '—')}</span>
+            ${r.is_promo ? '<span class="chip">promo</span>' : ''}
             <span class="num">${fromCents(r.price)}</span>
-            <button class="del" onclick="deletePrice(${r.id})" aria-label="Delete">&times;</button>
+            <button class="del" onclick="deletePrice('${r.id}')" aria-label="Delete">&times;</button>
           </div>`).join('')}
       </div>` : '';
 
@@ -176,20 +191,20 @@ async function renderPrices() {
         <input type="number" id="np_${p.id}" inputmode="decimal" step="0.01" placeholder="0.00">
         <input type="date" id="nd_${p.id}" value="${today()}">
         <label class="promo"><input type="checkbox" id="npr_${p.id}"> promo</label>
-        <button class="ghost" onclick="savePrice(${p.id})">Record</button>
+        <button class="ghost" onclick="savePrice('${p.id}')">Record</button>
       </div>`;
 
     return `
       <div class="daygroup">
-        <button class="prow" onclick="toggleProduct(${p.id})">
+        <button class="prow" onclick="toggleProduct('${p.id}')">
           <div class="meta">
             <div class="cat">${escapeHtml(p.name)}</div>
-            <div class="sub">${escapeHtml(catName[p.categoryId] || 'No category')} \u00B7 ${escapeHtml(p.unit || 'pcs')} \u00B7 ${summary}</div>
+            <div class="sub">${escapeHtml(catName[p.category_id] || 'No category')} \u00B7 ${escapeHtml(p.unit || 'pcs')} \u00B7 ${summary}</div>
           </div>
           <span class="caret">${open ? '&#8722;' : '+'}</span>
         </button>
         ${open ? `<div class="pdetail">${table}${addForm}${history}
-          <button class="linkdanger" onclick="deleteProduct(${p.id})">Delete product</button>
+          <button class="linkdanger" onclick="deleteProduct('${p.id}')">Delete product</button>
         </div>` : ''}
       </div>`;
   }).join('');

@@ -330,3 +330,52 @@ button:focus-visible,input:focus-visible,select:focus-visible,label:focus-visibl
 }
 
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ---------------- boot + auth ---------------- */
+.boot{
+  padding:40px 16px;text-align:center;color:var(--muted);
+  font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+}
+
+.screen.auth{
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;padding:20px;
+}
+.authbox{
+  width:100%;max-width:380px;
+  background:var(--card);border:1px solid var(--line);
+  border-radius:var(--radius);padding:22px;
+}
+.brand{margin-bottom:18px}
+.brand h1{margin:4px 0 0;font-size:22px;font-weight:600;letter-spacing:-.01em}
+.authmsg{
+  margin:12px 0 0;padding:10px 12px;border-radius:9px;
+  font-size:13.5px;line-height:1.45;
+  background:#F3F6F7;border-left:3px solid var(--line);
+}
+.authmsg.ok{border-left-color:var(--accent)}
+.authmsg.bad{border-left-color:var(--bad)}
+.linkbtn{
+  display:block;width:100%;margin-top:14px;padding:8px;
+  border:none;background:transparent;color:var(--muted);font-size:13px;
+}
+.linkbtn:active{color:var(--accent)}
+
+/* ---------------- account + sync ---------------- */
+.acctrow{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;margin-top:10px;
+}
+.syncstatus{
+  font-family:var(--mono);font-size:11px;letter-spacing:.06em;
+  color:var(--muted);margin-top:3px;
+}
+.syncstatus.ok{color:var(--accent)}
+.syncstatus.offline,.syncstatus.error{color:var(--over)}
+
+.badge{
+  width:8px;height:8px;flex:none;border-radius:50%;
+  background:#8FB0BD;align-self:center;
+}
+.badge.syncing{background:#F0C36D}
+.badge.error{background:#D9705A}
