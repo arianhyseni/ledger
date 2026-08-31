@@ -12,6 +12,50 @@ function initPrices() {
     if (!f.hidden) $('pName').focus();
   };
   $('productForm').onsubmit = saveProduct;
+
+  $('scanBtn').onclick = openScanner;
+  $('scannerClose').onclick = closeScanner;
+}
+
+/* ---------- barcode scanner ----------
+   Scanning only identifies the product — it opens the matching
+   product (ready to record a new price the normal way) or preps the
+   "+ New product" form with the barcode filled in. Price stays a
+   manual entry either way, same as adding one without scanning. */
+
+async function openScanner() {
+  $('scannerView').hidden = false;
+  $('scannerHint').textContent = 'Point the camera at a barcode';
+  await startBarcodeScan('scannerVideo', onBarcodeScanned, onScanError);
+}
+
+function closeScanner() {
+  stopBarcodeScan();
+  $('scannerView').hidden = true;
+}
+
+function onScanError(err) {
+  $('scannerHint').textContent = 'Could not open the camera' +
+    (err && err.message ? ': ' + err.message : '.');
+}
+
+async function onBarcodeScanned(code) {
+  closeScanner();
+
+  const products = await live('products');
+  const found = products.find(p => p.barcode && p.barcode === code);
+
+  if (found) {
+    openProductId = found.id;
+    $('prodSearch').value = found.name;
+    await renderPrices();
+    toast('Found: ' + found.name + ' — record a price below.');
+  } else {
+    $('productForm').hidden = false;
+    $('pBarcode').value = code;
+    $('pName').focus();
+    toast('New barcode — name it and save.');
+  }
 }
 
 /* ---------- products ---------- */

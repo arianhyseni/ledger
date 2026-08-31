@@ -247,7 +247,7 @@ async function renderMfaCard() {
 
   const { data } = await sb.auth.mfa.listFactors();
   const verified = data && data.totp && data.totp.find(f => f.status === 'verified');
-  const shieldIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l6.5 2.6v5c0 4.4-2.8 7.9-6.5 9.4-3.7-1.5-6.5-5-6.5-9.4v-5L12 3.5z"/><path d="M9 12.2l2 2 4-4.4"/></svg>`;
+  const shieldIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 12.75 11.25 15 15 9.75M21 12c0 4.556-3.752 8.201-8.14 9.847a1.147 1.147 0 0 1-.72 0C7.752 20.201 4 16.556 4 12V6.741c0-.72.474-1.356 1.146-1.598a19.5 19.5 0 0 1 6.294-1.093c.212-.005.424-.005.636 0a19.5 19.5 0 0 1 6.294 1.093c.672.242 1.146.878 1.146 1.598V12Z"/></svg>`;
 
   body.innerHTML = verified ? `
       <div class="mfarow">

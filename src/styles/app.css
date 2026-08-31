@@ -127,8 +127,12 @@ html { margin: 0; }
 .monthbox h1 { @apply mt-px text-[21px] font-bold tracking-[-.02em] whitespace-nowrap overflow-hidden text-ellipsis; }
 
 .stepper {
-  @apply w-12 h-12 flex-none border-none rounded-lg bg-transparent text-accent font-sans;
-  font-size: 26px; line-height: 1;
+  @apply w-12 h-12 flex-none flex items-center justify-center border-none rounded-lg bg-transparent text-accent font-sans;
+}
+.stepper svg {
+  @apply w-[22px] h-[22px];
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
 }
 .stepper:active { @apply bg-accent-wash; }
 .stepper[hidden] { display: none; }
@@ -468,21 +472,19 @@ button.danger.grow { @apply flex-1; }
 
 /* ---------------- barcode scanner ---------------- */
 .scanner {
-  @apply fixed inset-0 z-10 flex flex-col items-center justify-center gap-4 p-4 overflow-hidden;
-  background: rgba(9,13,17,.96);
+  @apply fixed inset-0 z-10 flex flex-col items-center overflow-hidden;
+  background: #000;
+  padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
 }
+#scannerVideo { @apply absolute inset-0 w-full h-full object-cover; }
+.scanner-overlay { @apply relative z-1 flex-1 w-full flex flex-col items-center justify-center gap-4; }
 .scanner-frame {
-  @apply pointer-events-none absolute rounded-2xl;
+  @apply rounded-2xl;
   width: min(320px, 78vw); height: 34vh;
   border: 3px solid rgba(255,255,255,.85);
   box-shadow: 0 0 0 999px rgba(9,13,17,.55);
 }
-#scannerVideo { @apply w-full h-full object-cover absolute inset-0; }
-.scanner-hint {
-  @apply relative z-1 text-white font-sans font-semibold text-center;
-  font-size: 15px;
-  margin-top: calc(17vh + 34px);
-}
+.scanner-hint { @apply text-white font-sans font-semibold text-center; font-size: 15px; }
 .scanner-close {
   @apply relative z-1 border-[1.5px] rounded-md bg-transparent text-white font-semibold;
   min-height: var(--spacing-tap); padding: 0 28px; font-size: 16px;

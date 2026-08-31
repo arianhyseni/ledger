@@ -4,7 +4,6 @@
 
 import './styles/app.css';
 import qrcode from 'qrcode-generator';
-import { BrowserMultiFormatReader } from '@zxing/browser';
 
 const $ = id => document.getElementById(id);
 
@@ -194,7 +193,7 @@ function enhanceSelect(select) {
   const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   chevron.setAttribute('viewBox', '0 0 24 24');
   chevron.setAttribute('aria-hidden', 'true');
-  chevron.innerHTML = '<path d="M6 9l6 6 6-6"/>';
+  chevron.innerHTML = '<path d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>';
   const label = document.createElement('span');
   trigger.appendChild(label);
   trigger.appendChild(chevron);
@@ -289,18 +288,37 @@ function enhanceSelects() {
 /* ---------- barcode scanning ----------
    prices.js is a classic script, not a Vite module, so it can't
    `import` this npm package itself — it calls these two globals
-   instead, same as every other legacy-facing helper in this file. */
+   instead, same as every other legacy-facing helper in this file.
+
+   ZXing's full decode engine is large (every barcode/QR/PDF417/Aztec
+   format), so it's lazy-loaded here on first scan rather than bundled
+   into the app's normal boot path — nobody pays for it until they
+   actually tap "scan". */
 
 let scanControls = null;
 
 async function startBarcodeScan(videoElId, onResult, onError) {
   try {
+    const [{ BrowserMultiFormatReader }, { DecodeHintType, BarcodeFormat }] = await Promise.all([
+      import('@zxing/browser'),
+      import('@zxing/library')
+    ]);
+
     const devices = await BrowserMultiFormatReader.listVideoInputDevices();
     if (!devices.length) throw new Error('No camera found on this device.');
     const back = devices.find(d => /back|rear|environment/i.test(d.label));
     const deviceId = (back || devices[devices.length - 1]).deviceId;
 
-    const reader = new BrowserMultiFormatReader();
+    // Retail barcode formats only — this is a grocery-price scanner,
+    // not a general QR/PDF417/Aztec reader. Narrowing the search
+    // space makes each frame decode faster and cuts down on misreads.
+    const hints = new Map([[DecodeHintType.POSSIBLE_FORMATS, [
+      BarcodeFormat.EAN_13, BarcodeFormat.EAN_8,
+      BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
+      BarcodeFormat.CODE_128, BarcodeFormat.CODE_39
+    ]]]);
+
+    const reader = new BrowserMultiFormatReader(hints);
     scanControls = await reader.decodeFromVideoDevice(deviceId, videoElId, (result) => {
       if (result) onResult(result.getText());
     });
