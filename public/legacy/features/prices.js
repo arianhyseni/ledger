@@ -40,8 +40,8 @@ async function openScanner() {
     if (!d) return;
     const secs = Math.max(1, Math.round((Date.now() - d.started) / 1000));
     $('scannerHint').textContent =
-      d.width + 'x' + d.height + ' · ' + d.attempts + ' tries (' +
-      Math.round(d.attempts / secs) + '/s) · ' + (d.lastError || 'no error');
+      d.width + 'x' + d.height + ' · ' + Math.round(d.attempts / secs) + '/s · ' +
+      'light ' + d.min + '-' + d.max + ' (spread ' + d.spread + ')';
   }, 500);
 }
 

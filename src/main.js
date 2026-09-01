@@ -818,13 +818,41 @@ async function startBarcodeScan(videoElId, onResult, onError) {
     // Diagnostics: surfaced via window.scanDiag so a real device can report
     // whether the decode loop is actually running and what it is seeing.
     const diag = window.scanDiag = {
-      attempts: 0, lastError: null, width: 0, height: 0, started: Date.now()
+      attempts: 0, lastError: null, width: 0, height: 0, started: Date.now(),
+      min: 0, max: 0, spread: 0
+    };
+
+    /* Samples the centre band of the live frame and reports its luminance
+       range. If ZXing is capturing what the preview shows, a framed barcode
+       gives a wide spread (near-black bars against near-white quiet zone).
+       A narrow spread means the decoder is being handed a washed-out or
+       blank frame regardless of how good the preview looks. */
+    let probeCanvas = null;
+    const probeFrame = () => {
+      const w = video.videoWidth, h = video.videoHeight;
+      if (!w || !h) return;
+      if (!probeCanvas) probeCanvas = document.createElement('canvas');
+      const pw = 160, ph = 60;
+      if (probeCanvas.width !== pw) { probeCanvas.width = pw; probeCanvas.height = ph; }
+      const ctx = probeCanvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return;
+      // Centre band of the frame, scaled down.
+      ctx.drawImage(video, 0, h * 0.35, w, h * 0.3, 0, 0, pw, ph);
+      const px = ctx.getImageData(0, 0, pw, ph).data;
+      let mn = 255, mx = 0;
+      for (let i = 0; i < px.length; i += 4) {
+        const v = (px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114) | 0;
+        if (v < mn) mn = v;
+        if (v > mx) mx = v;
+      }
+      diag.min = mn; diag.max = mx; diag.spread = mx - mn;
     };
     const onDecoded = (result, err, controls) => {
       if (finished) return;
       diag.attempts++;
       diag.width = video.videoWidth;
       diag.height = video.videoHeight;
+      if (diag.attempts % 4 === 0) probeFrame();
       if (err && err.name) diag.lastError = err.name;
       if (result) {
         finished = true;
