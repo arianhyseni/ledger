@@ -34,6 +34,20 @@ async function openScanner() {
   // Temporary on-device diagnostic: shows whether the decode loop is running
   // and what resolution it is reading, so scanner problems can be diagnosed
   // without a USB debugging session.
+  // Tap the preview to save the exact frame the decoder is reading, so a
+  // failing real-world frame can be replayed against the decoder offline.
+  $('scannerVideo').onclick = () => {
+    const url = window.dumpScanFrame && window.dumpScanFrame();
+    if (!url) return;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'scan-frame-' + Date.now() + '.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    toast('Frame saved');
+  };
+
   clearInterval(scanDiagTimer);
   scanDiagTimer = setInterval(() => {
     const d = window.scanDiag;
@@ -46,6 +60,7 @@ async function openScanner() {
 }
 
 function closeScanner() {
+  $('scannerVideo').onclick = null;
   clearInterval(scanDiagTimer);
   scanDiagTimer = null;
   stopBarcodeScan();

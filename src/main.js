@@ -827,6 +827,19 @@ async function startBarcodeScan(videoElId, onResult, onError) {
        gives a wide spread (near-black bars against near-white quiet zone).
        A narrow spread means the decoder is being handed a washed-out or
        blank frame regardless of how good the preview looks. */
+    /* Dumps the exact frame handed to the decoder as a PNG data URL, so a
+       failing real-world frame can be pulled off the device and replayed
+       against the decoder offline. Call window.dumpScanFrame() from the
+       console, or long-press the preview. */
+    window.dumpScanFrame = () => {
+      const w = video.videoWidth, h = video.videoHeight;
+      if (!w || !h) return null;
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(video, 0, 0);
+      return c.toDataURL('image/png');
+    };
+
     let probeCanvas = null;
     const probeFrame = () => {
       const w = video.videoWidth, h = video.videoHeight;
