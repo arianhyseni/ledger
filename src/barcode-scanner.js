@@ -61,6 +61,15 @@ export function scannerFormats(BarcodeFormat, mode = 'retail') {
   if (mode === 'qr') {
     return [BarcodeFormat.QR_CODE, BarcodeFormat.DATA_MATRIX];
   }
+  if (mode === 'payment') {
+    return [
+      BarcodeFormat.QR_CODE, BarcodeFormat.DATA_MATRIX,
+      BarcodeFormat.CODE_128, BarcodeFormat.CODE_39, BarcodeFormat.CODE_93,
+      BarcodeFormat.ITF, BarcodeFormat.CODABAR,
+      BarcodeFormat.EAN_13, BarcodeFormat.EAN_8,
+      BarcodeFormat.UPC_A, BarcodeFormat.UPC_E
+    ];
+  }
   return [
     BarcodeFormat.EAN_13, BarcodeFormat.EAN_8,
     BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
@@ -392,7 +401,7 @@ export function createBarcodeScanner({ getElement, log = () => {} }) {
     stop();
     const settings = options && typeof options === 'object' ? options : {};
     const requestedDeviceId = typeof options === 'string' ? options : settings.deviceId || null;
-    const mode = settings.mode === 'qr' ? 'qr' : 'retail';
+    const mode = ['qr', 'payment'].includes(settings.mode) ? settings.mode : 'retail';
     const video = getElement(videoElementId);
     const session = {
       id: ++nextSessionId,

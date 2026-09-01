@@ -15,7 +15,7 @@ import { lookupProductByBarcode } from './product-lookup.js';
 import { billTiming, nextBillDueDate, recurrenceLabel } from './bill-schedule.js';
 import { scanBillDocument } from './bill-ocr.js';
 import { buildBillAlerts, buildBillTrend } from './bill-insights.js';
-import { parseBillQrPayload } from './bill-qr.js';
+import { parseBillPaymentCode, parseBillQrPayload } from './bill-qr.js';
 
 const $ = id => document.getElementById(id);
 
@@ -717,6 +717,7 @@ window.TillRollBills = {
   recurrenceLabel,
   buildBillAlerts,
   buildBillTrend,
+  parseBillPaymentCode,
   parseBillQrPayload
 };
 window.scanBillDocument = scanBillDocument;

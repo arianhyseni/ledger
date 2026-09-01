@@ -88,11 +88,20 @@ function parsePaymentUrl(payload) {
   });
 }
 
-export function parseBillQrPayload(value) {
+export function parseBillPaymentCode(value, { allowLinear = false } = {}) {
   const payload = String(value || '').trim();
   if (!payload || payload.length > 16384) return { recognized: false, format: 'unknown' };
-  return parseEpc(payload) || parseEmv(payload) || parsePaymentUrl(payload) || {
+  const structured = parseEpc(payload) || parseEmv(payload) || parsePaymentUrl(payload);
+  if (structured) return structured;
+  if (allowLinear && payload.length <= 256 && /^[\p{L}\d][\p{L}\d./_-]{4,255}$/u.test(payload)) {
+    return result('linear-barcode', { accountReference: payload });
+  }
+  return {
     recognized: false,
     format: 'unknown'
   };
+}
+
+export function parseBillQrPayload(value) {
+  return parseBillPaymentCode(value);
 }

@@ -28,18 +28,18 @@ function initBills() {
 
 function openBillQrScanner() {
   openScanner({
-    mode: 'qr',
-    hint: 'Point the camera at the bill payment QR',
+    mode: 'payment',
+    hint: 'Point the camera at the bill barcode or QR',
     onCode: onBillQrScanned
   });
 }
 
 function onBillQrScanned(payload) {
   closeScanner();
-  const result = window.TillRollBills.parseBillQrPayload(payload);
+  const result = window.TillRollBills.parseBillPaymentCode(payload, { allowLinear: true });
   if (!result.recognized) {
     setBillScanStatus(
-      'QR scanned, but it did not contain a supported bill-payment format. Photograph the bill instead.',
+      'Code scanned, but it did not contain a usable bill reference. Photograph the bill instead.',
       { progress: 1, tone: 'bad' }
     );
     return;
@@ -56,8 +56,8 @@ function onBillQrScanned(payload) {
   const warning = billCurrencyWarning(result.currency);
   setBillScanStatus(
     suggestions
-      ? `${suggestions} field${suggestions === 1 ? '' : 's'} suggested from the payment QR. Review the highlighted values.${warning}`
-      : `The payment QR was recognized but had no new details to fill.${warning}`,
+      ? `${suggestions} field${suggestions === 1 ? '' : 's'} suggested from the bill code. Review the highlighted values.${warning}`
+      : `The bill code was recognized but had no new details to fill.${warning}`,
     { progress: 1, tone: warning ? 'bad' : 'ok' }
   );
 }
@@ -78,10 +78,11 @@ function ocrProgressLabel(status) {
   const labels = {
     'loading tesseract core': 'Loading the text reader…',
     'initializing tesseract': 'Preparing text recognition…',
-    'loading language traineddata': 'Loading English and Hungarian recognition data…',
+    'loading language traineddata': 'Loading Albanian, English and Serbian recognition data…',
     'initializing api': 'Preparing bill recognition…',
     'recognizing text': 'Reading the bill…',
     'reading PDF': 'Reading the PDF…',
+    'reading boxed fields': 'Checking boxed fields and isolated values…',
     'reading embedded text': 'Reading the PDF text…'
   };
   return labels[status] || 'Reading the bill…';

@@ -12,11 +12,14 @@ test('scanner modes keep retail barcodes separate from bill payment QR formats',
   const formats = {
     EAN_13: 'ean13', EAN_8: 'ean8', UPC_A: 'upca', UPC_E: 'upce',
     CODE_128: 'code128', CODE_39: 'code39', ITF: 'itf', RSS_14: 'rss14',
+    CODE_93: 'code93', CODABAR: 'codabar',
     QR_CODE: 'qr', DATA_MATRIX: 'data-matrix'
   };
   assert.deepEqual(scannerFormats(formats, 'qr'), ['qr', 'data-matrix']);
   assert.ok(scannerFormats(formats, 'retail').includes('ean13'));
   assert.ok(!scannerFormats(formats, 'retail').includes('qr'));
+  assert.ok(scannerFormats(formats, 'payment').includes('code128'));
+  assert.ok(scannerFormats(formats, 'payment').includes('qr'));
 });
 
 test('primary Samsung rear camera ranks above auxiliary lenses and front camera is excluded', () => {

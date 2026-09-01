@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { parseBillQrPayload } from '../src/bill-qr.js';
+import { parseBillPaymentCode, parseBillQrPayload } from '../src/bill-qr.js';
 
 function tlv(tag, value) {
   return `${tag}${String(value.length).padStart(2, '0')}${value}`;
@@ -44,4 +44,12 @@ test('payment URLs are read as data and unsupported QR payloads are rejected', (
   assert.equal(parsed.amountCents, 1999);
   assert.equal(parsed.accountReference, 'ABC123');
   assert.deepEqual(parseBillQrPayload('plain barcode data'), { recognized: false, format: 'unknown' });
+});
+
+test('a linear bill barcode is retained as the payment reference', () => {
+  const parsed = parseBillPaymentCode('10001234567890123456', { allowLinear: true });
+  assert.equal(parsed.recognized, true);
+  assert.equal(parsed.format, 'linear-barcode');
+  assert.equal(parsed.accountReference, '10001234567890123456');
+  assert.equal(parseBillPaymentCode('10001234567890123456').recognized, false);
 });
