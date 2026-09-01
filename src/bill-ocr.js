@@ -1,6 +1,6 @@
-const DATE_LABEL = /(?:due\s*date|payment\s*due|pay\s*by|afati\s*(?:i|për|per)?\s*pages[ëe]s|data\s*e\s*pages[ëe]s|paguaj\s*deri|rok\s*(?:za\s*)?pla[ćc]anja|datum\s*dospe[ćc]a|dospije[ćc]e|рок\s*(?:за\s*)?плаћања|датум\s*доспећа|fizetési\s*határidő|esedékesség|határidő)/i;
-const STRONG_AMOUNT_LABEL = /(?:amount\s*due|total\s*due|balance\s*due|grand\s*total|shuma\s*(?:për|per)\s*pages[ëe]|shuma\s*e\s*fatur[ëe]s|fatura\s*e\s*tanishme|p[ëe]r\s*pages[ëe]|iznos\s*(?:za\s*)?pla[ćc]anje|ukupan\s*iznos|za\s*uplatu|износ\s*(?:за\s*)?плаћање|укупан\s*износ|за\s*уплату|fizetendő(?:\s*összeg)?|végösszeg)/i;
-const TOTAL_AMOUNT_LABEL = /(?:\btotal\b|\btotali\b|\bshuma\b|\bbilanci\b|\bukupno\b|\bсвега\b|\bукупно\b|összesen)/i;
+const DATE_LABEL = /(?:due\s*date|payment\s*due|pay\s*by|afati\s*(?:i|për|per)?\s*pages[ëe]s?|data\s*e\s*pages[ëe]s?|paguaj\s*deri|rok\s*(?:za\s*)?pla[ćc]anja|datum\s*dospe[ćc]a|dospije[ćc]e|рок\s*(?:за\s*)?плаћања|датум\s*доспећа|fizetési\s*határidő|esedékesség|határidő)/i;
+const STRONG_AMOUNT_LABEL = /(?:amount\s*due|total\s*due|balance\s*due|grand\s*total|shuma\s*(?:për|per)\s*pages[ëe]s?|shuma\s*e\s*fatur[ëe]s|fatura\s*e\s*tanishme|iznos\s*(?:za\s*)?pla[ćc]anje|ukupan\s*iznos|za\s*uplatu|износ\s*(?:за\s*)?плаћање|укупан\s*износ|за\s*уплату|fizetendő(?:\s*összeg)?|végösszeg)/i;
+const TOTAL_AMOUNT_LABEL = /(?:\btotal\b|totali\s*(?:për|per)\s*pages[ëe]s?|shuma\s*totale|bilanci\s*(?:për|per)\s*pages[ëe]s?|ukupno\s*(?:za\s*)?pla[ćc]anje|свега\s*за\s*уплату|укупно\s*за\s*плаћање|összesen)/i;
 const ACCOUNT_LABEL = /(?:account\s*(?:number|reference|no\.?|id)|customer\s*(?:number|reference|no\.?|id)|contract\s*account|id\s*e\s*konsumatorit|shifra\s*e\s*konsumatorit|numri\s*(?:personal\s*)?(?:i\s*)?konsumatorit|kodi\s*(?:i\s*)?konsumatorit|numri\s*i\s*referenc[ëe]s(?:\s*s[ëe]\s*pages[ëe]s)?|barkodi\s*i\s*fatur[ëe]s|broj\s*(?:kupca|potrošača|potrosaca|računa|racuna)|šifra\s*(?:kupca|potrošača)|sifra\s*(?:kupca|potrosaca)|poziv\s*na\s*broj|број\s*(?:купца|потрошача|рачуна)|шифра\s*(?:купца|потрошача)|позив\s*на\s*број|ügyfélazonosító|vevőazonosító|felhasználó\s*azonosító|szerződésszám)/i;
 const PROVIDER_LABEL = /(?:provider|supplier|service\s*provider|ofruesi|furnizuesi|l[ëe]shuesi|dobavlja[čc]|pružalac\s*usluge|pruzalac\s*usluge|добављач|пружалац\s*услуге|szolgáltató|kibocsátó)/i;
 const USAGE_LABEL = /(?:consumption|usage|metered|konsumi|konsum(?:i|uar)|energjia\s*e\s*konsumuar|potrošnja|potrosnja|потрошња|fogyasztás|felhasználás)/i;
@@ -63,7 +63,7 @@ export function parseBillMoney(value) {
 function amountFromLines(lines) {
   const ranked = [];
   lines.forEach((line, index) => {
-    if (STRONG_AMOUNT_LABEL.test(line)) {
+    if (STRONG_AMOUNT_LABEL.test(line) || TOTAL_AMOUNT_LABEL.test(line)) {
       ranked.push(line);
       for (const nearby of lines.slice(index + 1, index + 3)) {
         if (ANY_FIELD_LABEL.test(nearby)) break;
@@ -71,10 +71,6 @@ function amountFromLines(lines) {
       }
     }
   });
-  ranked.push(
-    ...lines.filter(line => TOTAL_AMOUNT_LABEL.test(line) && !/(?:subtotal|n[ëe]ntotal|međuzbir|medjuzbir)/i.test(line)),
-    ...lines.filter(line => CURRENCY_LABEL.test(line))
-  );
   const unique = ranked.filter((line, index, list) => list.indexOf(line) === index);
   for (const line of unique) {
     if (dateFromLine(line) && !CURRENCY_LABEL.test(line)) continue;
@@ -202,6 +198,19 @@ export function extractBillFields(text) {
   };
 }
 
+function mergeMissingBillFields(primary, fallback) {
+  const merged = { ...primary };
+  for (const key of [
+    'provider', 'amountCents', 'currency', 'dueDate',
+    'accountReference', 'usage', 'usageUnit', 'utilityType'
+  ]) {
+    if ((merged[key] === null || merged[key] === '') && fallback[key] !== null && fallback[key] !== '') {
+      merged[key] = fallback[key];
+    }
+  }
+  return merged;
+}
+
 let workerPromise = null;
 let progressListener = null;
 
@@ -213,7 +222,7 @@ async function getOcrWorker(onProgress) {
         import('tesseract.js'),
         import('tesseract.js/dist/worker.min.js?url')
       ]);
-      const worker = await createWorker(['sqi', 'eng', 'srp', 'srp_latn'], 1, {
+      const worker = await createWorker(['sqi', 'eng', 'srp_latn'], 1, {
         workerPath: workerUrl.default,
         logger(message) {
           if (progressListener) progressListener(message);
@@ -246,52 +255,6 @@ async function canvasFromImage(file) {
   context.filter = 'grayscale(1) contrast(1.25)';
   context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close();
-  return canvas;
-}
-
-function thresholdCanvas(source) {
-  const canvas = document.createElement('canvas');
-  canvas.width = source.width;
-  canvas.height = source.height;
-  const context = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
-  context.drawImage(source, 0, 0);
-  const image = context.getImageData(0, 0, canvas.width, canvas.height);
-  const histogram = new Uint32Array(256);
-  for (let index = 0; index < image.data.length; index += 4) histogram[image.data[index]]++;
-
-  const pixelCount = canvas.width * canvas.height;
-  let total = 0;
-  for (let value = 0; value < 256; value++) total += value * histogram[value];
-  let backgroundWeight = 0;
-  let backgroundTotal = 0;
-  let bestVariance = -1;
-  let threshold = 170;
-  for (let value = 0; value < 256; value++) {
-    backgroundWeight += histogram[value];
-    if (!backgroundWeight) continue;
-    const foregroundWeight = pixelCount - backgroundWeight;
-    if (!foregroundWeight) break;
-    backgroundTotal += value * histogram[value];
-    const backgroundMean = backgroundTotal / backgroundWeight;
-    const foregroundMean = (total - backgroundTotal) / foregroundWeight;
-    const variance = backgroundWeight * foregroundWeight * (backgroundMean - foregroundMean) ** 2;
-    if (variance > bestVariance) {
-      bestVariance = variance;
-      threshold = value;
-    }
-  }
-
-  // A small lift keeps thin letter strokes that a strict global threshold can
-  // erase on phone photos with uneven lighting.
-  threshold = Math.min(220, threshold + 12);
-  for (let index = 0; index < image.data.length; index += 4) {
-    const value = image.data[index] <= threshold ? 0 : 255;
-    image.data[index] = value;
-    image.data[index + 1] = value;
-    image.data[index + 2] = value;
-    image.data[index + 3] = 255;
-  }
-  context.putImageData(image, 0, 0);
   return canvas;
 }
 
@@ -363,7 +326,7 @@ export async function scanBillDocument(file, { onProgress = () => {} } = {}) {
   const image = pdfResult ? pdfResult.canvas : await canvasFromImage(file);
   const worker = await getOcrWorker(onProgress);
   const result = await worker.recognize(image, { rotateAuto: true }, { text: true });
-  let text = result.data.text;
+  const text = result.data.text;
   let fields = extractBillFields(text);
   const coreFieldCount = [fields.provider, fields.amountCents, fields.dueDate, fields.accountReference]
     .filter(value => value !== null && value !== '').length;
@@ -371,18 +334,16 @@ export async function scanBillDocument(file, { onProgress = () => {} } = {}) {
   // Utility invoices frequently place labels and values in separate bordered
   // cells. A sparse-text retry recovers isolated values that normal page
   // segmentation can skip, but only pays the extra OCR cost when needed.
-  if (coreFieldCount < 3) {
+  if (coreFieldCount < 2) {
     onProgress({ status: 'reading boxed fields', progress: 0.82 });
-    const thresholded = thresholdCanvas(image);
     let sparse;
     try {
       await worker.setParameters({ tessedit_pageseg_mode: '11' });
-      sparse = await worker.recognize(thresholded, { rotateAuto: true }, { text: true });
+      sparse = await worker.recognize(image, { rotateAuto: true }, { text: true });
     } finally {
       await worker.setParameters({ tessedit_pageseg_mode: '3' });
     }
-    text = `${text}\n${sparse.data.text}`;
-    fields = extractBillFields(text);
+    fields = mergeMissingBillFields(fields, extractBillFields(sparse.data.text));
   }
 
   return { ...fields, source: pdfResult ? pdfResult.source : 'image-ocr' };

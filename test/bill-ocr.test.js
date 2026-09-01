@@ -109,3 +109,14 @@ test('reconstructs PDF table rows by their coordinates before field extraction',
   assert.equal(result.dueDate, '2026-09-18');
   assert.equal(result.amountCents, 2456);
 });
+
+test('does not mistake a payment deadline or tariff row for the amount due', () => {
+  const result = extractBillFields(`
+    KESCO Energy
+    Afati për pagesë: 18.09.2026
+    Tarifa ditore: 0,12 EUR/kWh
+    TVSH: 8%
+  `);
+  assert.equal(result.dueDate, '2026-09-18');
+  assert.equal(result.amountCents, null);
+});
