@@ -624,10 +624,10 @@ button.danger.grow { @apply flex-1; }
 .acctrow { @apply flex items-center justify-between gap-3 mt-3; }
 .syncstatus { @apply text-[14px] font-semibold text-muted mt-[3px]; }
 .syncstatus.ok { @apply text-good; }
-.syncstatus.offline, .syncstatus.error { @apply text-over; }
+.syncstatus.pending, .syncstatus.offline, .syncstatus.error { @apply text-over; }
 
 .badge { @apply w-2.5 h-2.5 flex-none rounded-full bg-good self-center mr-0.5; }
-.badge.syncing { @apply bg-over; }
+.badge.pending, .badge.offline, .badge.syncing { @apply bg-over; }
 .badge.error { @apply bg-bad; }
 
 /* ---------------- primary navigation ----------------

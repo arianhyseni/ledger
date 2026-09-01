@@ -664,17 +664,38 @@ function initCustomControls() {
 
 let scanControls = null;
 
+async function tuneBarcodeCamera(video) {
+  const stream = video && video.srcObject;
+  const track = stream && stream.getVideoTracks && stream.getVideoTracks()[0];
+  if (!track) return;
+
+  // Chrome exposes continuous autofocus on supported Android cameras. It is
+  // an optional enhancement: a browser that does not expose it still keeps
+  // the HD stream and scans normally.
+  try {
+    const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+    if (Array.isArray(capabilities.focusMode) && capabilities.focusMode.includes('continuous')) {
+      await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+    }
+  } catch (err) {
+    log('Scanner autofocus preference was not available:', err.message || err);
+  }
+
+  const settings = track.getSettings ? track.getSettings() : {};
+  log('Scanner stream:', {
+    width: settings.width,
+    height: settings.height,
+    frameRate: settings.frameRate,
+    facingMode: settings.facingMode
+  });
+}
+
 async function startBarcodeScan(videoElId, onResult, onError) {
   try {
     const [{ BrowserMultiFormatReader }, { DecodeHintType, BarcodeFormat }] = await Promise.all([
       import('@zxing/browser'),
       import('@zxing/library')
     ]);
-
-    const devices = await BrowserMultiFormatReader.listVideoInputDevices();
-    if (!devices.length) throw new Error('No camera found on this device.');
-    const back = devices.find(d => /back|rear|environment/i.test(d.label));
-    const deviceId = (back || devices[devices.length - 1]).deviceId;
 
     // Retail barcode formats only — this is a grocery-price scanner,
     // not a general QR/PDF417/Aztec reader. Narrowing the search
@@ -686,9 +707,46 @@ async function startBarcodeScan(videoElId, onResult, onError) {
     ]]]);
 
     const reader = new BrowserMultiFormatReader(hints);
-    scanControls = await reader.decodeFromVideoDevice(deviceId, videoElId, (result) => {
+    const video = $(videoElId);
+    if (!video) throw new Error('Scanner preview is unavailable.');
+
+    // Asking for a labelled device before camera permission is unreliable on
+    // Android and can select an ultra-wide/auxiliary lens. Let the browser pick
+    // its main environment-facing camera and explicitly request an HD stream.
+    const preferred = {
+      audio: false,
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { min: 1280, ideal: 1920 },
+        height: { min: 720, ideal: 1080 },
+        frameRate: { ideal: 30, max: 30 }
+      }
+    };
+    const fallback = {
+      audio: false,
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      }
+    };
+
+    const onDecoded = (result) => {
       if (result) onResult(result.getText());
-    });
+    };
+
+    stopBarcodeScan();
+    try {
+      scanControls = await reader.decodeFromConstraints(preferred, video, onDecoded);
+    } catch (err) {
+      const constraintFailure = err && (
+        err.name === 'OverconstrainedError' || err.name === 'ConstraintNotSatisfiedError'
+      );
+      if (!constraintFailure) throw err;
+      scanControls = await reader.decodeFromConstraints(fallback, video, onDecoded);
+    }
+
+    await tuneBarcodeCamera(video);
   } catch (err) {
     onError(err);
   }

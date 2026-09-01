@@ -4,5 +4,5 @@
 --  income. Integer cents, same as every other amount.
 -- ============================================================
 
-alter table income
+alter table public.income
   add column if not exists debt integer not null default 0;

@@ -339,7 +339,7 @@ async function renderSettings() {
 
   await renderAccount();
   await renderMfaCard();
-  if (CLOUD_ENABLED && currentUser) await setSyncStatus('ok');
+  if (CLOUD_ENABLED && currentUser) await refreshSyncStatus();
 
   const cats   = (await live('categories')).sort((a, b) => a.name.localeCompare(b.name));
   const stores = (await live('stores')).sort((a, b) => a.name.localeCompare(b.name));

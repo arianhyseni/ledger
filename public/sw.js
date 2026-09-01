@@ -1,4 +1,4 @@
-const CACHE = 'tillroll-v25';
+const CACHE = 'tillroll-v26';
 
 const SHELL = [
   './',

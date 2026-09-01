@@ -33,12 +33,18 @@ const LOCAL_KEY   = t => (t === 'settings' ? 'key' : 'id');
 
 let syncing = false;
 let syncTimer = null;
+let syncState = navigator.onLine ? 'ok' : 'offline';
+let syncDetail = '';
 
 /* ---------- entry points ---------- */
 
 function scheduleSync(delay) {
   if (!CLOUD_ENABLED || !currentUser) return;
   clearTimeout(syncTimer);
+  // A local write is already safe, but it is not synced yet. Reflect that
+  // immediately instead of leaving a stale green "Synced" label visible
+  // during the debounce window.
+  void setSyncStatus(navigator.onLine ? 'pending' : 'offline');
   syncTimer = setTimeout(syncNow, delay === undefined ? 2500 : delay);
 }
 
@@ -173,21 +179,33 @@ async function dedupeIncome() {
 /* ---------- status ---------- */
 
 async function setSyncStatus(state, detail) {
+  const pending = await pendingCount();
+  const last = await getMeta('lastSync', null);
+
+  // A successful attempt cannot be presented as fully synced while a local
+  // row is still dirty (for example, if a write landed during the request).
+  if (state === 'ok' && pending > 0) state = 'pending';
+
+  syncState = state;
+  syncDetail = detail || '';
+
   const el = $('syncStatus');
   if (!el) return;
 
-  const pending = await pendingCount();
-  const last = await getMeta('lastSync', null);
+  const changeLabel = pending + ' change' + (pending === 1 ? '' : 's');
 
   // Offline is a state, not an error (§6.6): changes are safe on the
   // device, so the wording says so and never goes red.
   const labels = {
     syncing: 'Syncing…',
-    ok:      pending ? pending + ' change' + (pending === 1 ? '' : 's') + ' waiting to sync' : 'Synced',
+    ok:      'Synced',
+    pending: pending ? changeLabel + ' waiting to sync' : 'Sync queued',
     offline: pending
-      ? 'Offline — ' + pending + ' change' + (pending === 1 ? '' : 's') + ' saved on this device'
+      ? 'Offline — ' + changeLabel + ' saved on this device'
       : 'Offline — saved on this device',
-    error:   'Sync needs attention'
+    error:   pending
+      ? 'Sync could not finish — ' + changeLabel + ' safe on this device'
+      : 'Sync could not finish — try again'
   };
 
   el.textContent = labels[state] || '';
@@ -196,12 +214,26 @@ async function setSyncStatus(state, detail) {
 
   const badge = $('syncBadge');
   if (badge) {
-    badge.hidden = !(state === 'syncing' || pending > 0 || state === 'error');
+    badge.hidden = !(state === 'syncing' || state === 'pending' || pending > 0 || state === 'error');
     badge.className = 'badge ' + state;
     // The dot itself is decorative; the words live in Settings.
     badge.setAttribute('aria-hidden', 'true');
     badge.title = labels[state] || '';
   }
+
+  const button = $('syncBtn');
+  if (button) {
+    button.disabled = state === 'syncing';
+    button.textContent = state === 'syncing'
+      ? 'Syncing…'
+      : (state === 'error' ? 'Retry sync' : 'Sync now');
+  }
+}
+
+// Repaint the last real state after Settings rerenders. In particular, do
+// not turn an error green merely because the user opened this screen.
+function refreshSyncStatus() {
+  return setSyncStatus(syncState, syncDetail);
 }
 
 async function pendingCount() {
