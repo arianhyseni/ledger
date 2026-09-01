@@ -34,18 +34,38 @@ async function openScanner() {
   // Temporary on-device diagnostic: shows whether the decode loop is running
   // and what resolution it is reading, so scanner problems can be diagnosed
   // without a USB debugging session.
-  // Tap the preview to save the exact frame the decoder is reading, so a
-  // failing real-world frame can be replayed against the decoder offline.
-  $('scannerVideo').onclick = () => {
+  //
+  // Tapping the scan frame captures the exact image the decoder is reading.
+  // A programmatic <a download> click is unreliable in Chrome on Android, so
+  // the frame is shown full-screen instead: it can be long-pressed to save,
+  // or handed to the OS share sheet when the browser supports it.
+  $('scannerCapture').onclick = async () => {
     const url = window.dumpScanFrame && window.dumpScanFrame();
-    if (!url) return;
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'scan-frame-' + Date.now() + '.png';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    toast('Frame saved');
+    if (!url) { toast('No frame yet'); return; }
+
+    stopBarcodeScan();
+    clearInterval(scanDiagTimer);
+    $('scanShotImg').src = url;
+    $('scanShot').hidden = false;
+
+    // Best case: hand the PNG straight to the OS share sheet.
+    try {
+      const blob = await (await fetch(url)).blob();
+      const file = new File([blob], 'scan-frame.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        $('scanShotShare').hidden = false;
+        $('scanShotShare').onclick = () =>
+          navigator.share({ files: [file] }).catch(() => {});
+        return;
+      }
+    } catch (_) { /* fall through to long-press */ }
+    $('scanShotShare').hidden = true;
+  };
+
+  $('scanShotClose').onclick = () => {
+    $('scanShot').hidden = true;
+    $('scanShotImg').src = '';
+    closeScanner();
   };
 
   clearInterval(scanDiagTimer);
@@ -60,7 +80,7 @@ async function openScanner() {
 }
 
 function closeScanner() {
-  $('scannerVideo').onclick = null;
+  $('scannerCapture').onclick = null;
   clearInterval(scanDiagTimer);
   scanDiagTimer = null;
   stopBarcodeScan();

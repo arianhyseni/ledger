@@ -430,10 +430,22 @@
 <div class="scanner" id="scannerView" hidden>
   <video id="scannerVideo" autoplay playsinline muted></video>
   <div class="scanner-overlay">
-    <div class="scanner-frame" aria-hidden="true"></div>
+    <button class="scanner-frame" id="scannerCapture" type="button"
+            aria-label="Capture the current frame for diagnostics"></button>
     <p class="scanner-hint" id="scannerHint">Point the camera at a barcode</p>
   </div>
   <button class="scanner-close" id="scannerClose" type="button">Cancel</button>
+</div>
+
+<!-- Temporary diagnostic: shows the exact frame the decoder saw, so it can be
+     long-pressed to save or shared off the device. -->
+<div class="scanshot" id="scanShot" hidden>
+  <img id="scanShotImg" alt="Captured scanner frame">
+  <p class="scanshot-hint">Long-press the image to save it, then send it over.</p>
+  <div class="scanshot-actions">
+    <button id="scanShotShare" type="button" hidden>Share image</button>
+    <button id="scanShotClose" type="button">Close</button>
+  </div>
 </div>
 
 <div class="viewer" id="viewer" role="dialog" aria-modal="true" aria-label="Receipt" hidden>

@@ -700,7 +700,7 @@ button.danger.grow { @apply flex-1; }
 #scannerVideo { @apply absolute inset-0 w-full h-full object-cover; }
 .scanner-overlay { @apply relative z-1 flex-1 w-full flex flex-col items-center justify-center gap-4; }
 .scanner-frame {
-  @apply rounded-2xl;
+  @apply rounded-2xl block p-0 bg-transparent;
   width: min(320px, 78vw); height: 34vh;
   border: 3px solid rgba(255,255,255,.85);
   box-shadow: 0 0 0 999px rgba(9,13,17,.55);
@@ -709,6 +709,20 @@ button.danger.grow { @apply flex-1; }
 .scanner-close {
   @apply relative z-1 border-[1.5px] rounded-md bg-transparent text-white font-semibold;
   min-height: var(--spacing-tap); padding: 0 28px; font-size: 16px;
+  border-color: rgba(255,255,255,.35);
+}
+
+/* Temporary scanner diagnostic overlay. */
+.scanshot {
+  @apply fixed inset-0 z-20 flex flex-col items-center justify-center gap-4 p-5;
+  background: #000;
+}
+.scanshot img { @apply max-w-full rounded-lg; max-height: 65vh; }
+.scanshot-hint { @apply text-white font-sans text-center; font-size: 14px; }
+.scanshot-actions { @apply flex gap-3; }
+.scanshot-actions button {
+  @apply border-[1.5px] rounded-md bg-transparent text-white font-semibold;
+  min-height: var(--spacing-tap); padding: 0 22px; font-size: 15px;
   border-color: rgba(255,255,255,.35);
 }
 
