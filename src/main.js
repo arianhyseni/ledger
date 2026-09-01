@@ -11,6 +11,7 @@ import '@fontsource/inter/600.css';  // Heading
 import './styles/app.css';
 import qrcode from 'qrcode-generator';
 import { createBarcodeScanner } from './barcode-scanner.js';
+import { lookupProductByBarcode } from './product-lookup.js';
 
 const $ = id => document.getElementById(id);
 
@@ -703,3 +704,4 @@ window.TillRollControls = {
 window.startBarcodeScan = barcodeScanner.start;
 window.stopBarcodeScan = barcodeScanner.stop;
 window.switchBarcodeCamera = barcodeScanner.switchCamera;
+window.lookupProductByBarcode = lookupProductByBarcode;

@@ -122,6 +122,9 @@ html { margin: 0; }
 .hint b.bad { @apply text-bad; }
 .hint.ok { @apply text-good; }
 .hint.bad { @apply text-bad; }
+.product-lookup-status { @apply mt-0; }
+.product-lookup-status a, .data-credit a { @apply text-accent underline; }
+.data-credit { @apply mt-4 text-center text-muted; font-size: 12px; }
 
 /* ---------------- top bar ---------------- */
 .topbar {

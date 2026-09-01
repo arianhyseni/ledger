@@ -7,6 +7,8 @@ let openProductId = null;
 function initPrices() {
   $('prodSearch').oninput = () => renderPrices();
   $('toggleNewProduct').onclick = () => {
+    cancelProductLookup();
+    clearProductLookupStatus();
     const f = $('productForm');
     f.hidden = !f.hidden;
     $('toggleNewProduct').setAttribute('aria-expanded', String(!f.hidden));
@@ -30,8 +32,12 @@ let scanDiagTimer = null;
 let scannerOpenId = 0;
 let scanHasError = false;
 let scanErrorContext = 'open';
+let productLookupId = 0;
+let productLookupController = null;
 
 async function openScanner() {
+  cancelProductLookup();
+  clearProductLookupStatus();
   const openId = ++scannerOpenId;
   clearScanDiagnostics();
   scanHasError = false;
@@ -184,20 +190,82 @@ function closeScanShot() {
 
 async function onBarcodeScanned(code) {
   closeScanner();
+  cancelProductLookup();
 
   const products = await live('products');
   const found = products.find(p => p.barcode && p.barcode === code);
 
   if (found) {
+    $('productForm').hidden = true;
+    $('toggleNewProduct').setAttribute('aria-expanded', 'false');
     openProductId = found.id;
     $('prodSearch').value = found.name;
     await renderPrices();
     toast('Found: ' + found.name + ' — record a price below.');
   } else {
+    const lookupId = productLookupId;
+    const controller = new AbortController();
+    productLookupController = controller;
     $('productForm').hidden = false;
+    $('toggleNewProduct').setAttribute('aria-expanded', 'true');
+    $('pName').value = '';
     $('pBarcode').value = code;
     $('pName').focus();
-    toast('New barcode — name it and save.');
+    setProductLookupStatus('Looking up this barcode…');
+
+    try {
+      const result = typeof window.lookupProductByBarcode === 'function'
+        ? await window.lookupProductByBarcode(code, { signal: controller.signal })
+        : { found: false, reason: 'unavailable' };
+      if (lookupId !== productLookupId || controller.signal.aborted) return;
+
+      if (result.found) {
+        // Do not overwrite text if the user started typing while the lookup ran.
+        if (!$('pName').value.trim()) $('pName').value = result.name;
+        setProductLookupStatus(
+          'Product details found. Check the name, then save.',
+          { sourceUrl: result.sourceUrl, tone: 'ok' }
+        );
+        toast('Found: ' + result.name + ' — check and save.');
+      } else {
+        setProductLookupStatus('No product listing was found. Enter the name to save it.');
+        toast('Barcode scanned — enter the product name.');
+      }
+    } catch (err) {
+      if (lookupId !== productLookupId || controller.signal.aborted) return;
+      setProductLookupStatus('Could not look up this product. You can still enter the name.', { tone: 'bad' });
+      toast('Barcode scanned — product lookup is unavailable.');
+    } finally {
+      if (lookupId === productLookupId) productLookupController = null;
+    }
+  }
+}
+
+function cancelProductLookup() {
+  productLookupId++;
+  if (productLookupController) productLookupController.abort();
+  productLookupController = null;
+}
+
+function clearProductLookupStatus() {
+  const status = $('productLookupStatus');
+  status.hidden = true;
+  status.className = 'hint product-lookup-status';
+  status.textContent = '';
+}
+
+function setProductLookupStatus(message, { sourceUrl, tone } = {}) {
+  const status = $('productLookupStatus');
+  status.hidden = false;
+  status.className = 'hint product-lookup-status' + (tone ? ' ' + tone : '');
+  status.textContent = message;
+  if (sourceUrl) {
+    const source = document.createElement('a');
+    source.href = sourceUrl;
+    source.target = '_blank';
+    source.rel = 'noopener noreferrer';
+    source.textContent = 'Open Food Facts';
+    status.append(document.createTextNode(' Source: '), source, document.createTextNode('.'));
   }
 }
 
@@ -207,6 +275,8 @@ async function saveProduct(e) {
   e.preventDefault();
   const name = $('pName').value.trim();
   if (!name) return;
+  cancelProductLookup();
+  clearProductLookupStatus();
 
   // Likely-duplicate check (§11.5): ask, never silently merge.
   const existing = (await live('products'))
@@ -237,6 +307,7 @@ async function saveProduct(e) {
 
   $('productForm').reset();
   $('productForm').hidden = true;
+  $('toggleNewProduct').setAttribute('aria-expanded', 'false');
   openProductId = id;
   await renderPrices();
   toast('Product added. Now record a price.');

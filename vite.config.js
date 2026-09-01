@@ -47,7 +47,17 @@ function serviceWorkerPrecache() {
         const serviceWorkerPath = join(outputDirectory, 'sw.js');
         const serviceWorker = await readFile(serviceWorkerPath, 'utf8');
 
-        if (!serviceWorker.includes(BUILD_ID_TOKEN) || !serviceWorker.includes(PRECACHE_TOKEN)) {
+        const hasSourceTokens = serviceWorker.includes(BUILD_ID_TOKEN) &&
+          serviceWorker.includes(PRECACHE_TOKEN);
+        const alreadyGenerated = /const BUILD_ID = "[0-9a-f]{16}";/.test(serviceWorker) &&
+          serviceWorker.includes('const PRECACHE_ASSETS = [');
+
+        // Vite 8 can invoke closeBundle more than once for the client
+        // environment. The first pass has already generated a complete worker,
+        // so a later pass should leave it intact rather than treating it as a
+        // missing-template failure.
+        if (alreadyGenerated) return;
+        if (!hasSourceTokens) {
           throw new Error('Service worker precache placeholders are missing.');
         }
 
