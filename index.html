@@ -430,11 +430,15 @@
 <div class="scanner" id="scannerView" hidden>
   <video id="scannerVideo" autoplay playsinline muted></video>
   <div class="scanner-overlay">
-    <button class="scanner-frame" id="scannerCapture" type="button"
-            aria-label="Capture the current frame for diagnostics"></button>
+    <div class="scanner-frame" id="scannerFrame" aria-hidden="true"></div>
     <p class="scanner-hint" id="scannerHint">Point the camera at a barcode</p>
   </div>
-  <button class="scanner-close" id="scannerClose" type="button">Cancel</button>
+  <div class="scanner-actions">
+    <button class="scanner-tool" id="scannerSwitch" type="button" disabled>Switch camera</button>
+    <button class="scanner-tool scanner-diagnostic" id="scannerCapture" type="button" disabled
+            aria-label="Capture the current camera frame for diagnostics">Capture debug frame</button>
+    <button class="scanner-close" id="scannerClose" type="button">Cancel</button>
+  </div>
 </div>
 
 <!-- Temporary diagnostic: shows the exact frame the decoder saw, so it can be

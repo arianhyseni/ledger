@@ -700,17 +700,23 @@ button.danger.grow { @apply flex-1; }
 #scannerVideo { @apply absolute inset-0 w-full h-full object-cover; }
 .scanner-overlay { @apply relative z-1 flex-1 w-full flex flex-col items-center justify-center gap-4; }
 .scanner-frame {
-  @apply rounded-2xl block p-0 bg-transparent;
+  @apply rounded-2xl block bg-transparent;
   width: min(320px, 78vw); height: 34vh;
   border: 3px solid rgba(255,255,255,.85);
   box-shadow: 0 0 0 999px rgba(9,13,17,.55);
+  pointer-events: none;
 }
 .scanner-hint { @apply text-white font-sans font-semibold text-center; font-size: 15px; }
-.scanner-close {
+.scanner-actions {
+  @apply relative z-1 flex flex-wrap items-center justify-center gap-2 w-full;
+}
+.scanner-actions button {
   @apply relative z-1 border-[1.5px] rounded-md bg-transparent text-white font-semibold;
-  min-height: var(--spacing-tap); padding: 0 28px; font-size: 16px;
+  min-height: var(--spacing-tap); padding: 0 18px; font-size: 14px;
   border-color: rgba(255,255,255,.35);
 }
+.scanner-actions button:disabled { opacity: .45; }
+.scanner-diagnostic { font-size: 12px !important; }
 
 /* Temporary scanner diagnostic overlay. */
 .scanshot {

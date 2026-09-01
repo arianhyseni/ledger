@@ -16,6 +16,8 @@ function initPrices() {
 
   $('scanBtn').onclick = openScanner;
   $('scannerClose').onclick = closeScanner;
+  $('scannerSwitch').onclick = switchScannerCamera;
+  $('scanShotClose').onclick = closeScanShot;
 }
 
 /* ---------- barcode scanner ----------
@@ -25,71 +27,159 @@ function initPrices() {
    manual entry either way, same as adding one without scanning. */
 
 let scanDiagTimer = null;
+let scannerOpenId = 0;
+let scanHasError = false;
+let scanErrorContext = 'open';
 
 async function openScanner() {
+  const openId = ++scannerOpenId;
+  clearScanDiagnostics();
+  scanHasError = false;
+  scanErrorContext = 'open';
+  setScanToolsEnabled(false);
+  $('scannerCapture').onclick = null;
   $('scannerView').hidden = false;
   $('scannerHint').textContent = 'Point the camera at a barcode';
-  await startBarcodeScan('scannerVideo', onBarcodeScanned, onScanError);
 
-  // Temporary on-device diagnostic: shows whether the decode loop is running
-  // and what resolution it is reading, so scanner problems can be diagnosed
-  // without a USB debugging session.
-  //
-  // Tapping the scan frame captures the exact image the decoder is reading.
-  // A programmatic <a download> click is unreliable in Chrome on Android, so
-  // the frame is shown full-screen instead: it can be long-pressed to save,
-  // or handed to the OS share sheet when the browser supports it.
-  $('scannerCapture').onclick = async () => {
-    const url = window.dumpScanFrame && window.dumpScanFrame();
-    if (!url) { toast('No frame yet'); return; }
+  let started = false;
+  try {
+    started = await startBarcodeScan(
+      'scannerVideo',
+      code => { if (openId === scannerOpenId) onBarcodeScanned(code); },
+      err => { if (openId === scannerOpenId) onScanError(err); }
+    );
+  } catch (err) {
+    if (openId === scannerOpenId) onScanError(err);
+    return;
+  }
 
-    stopBarcodeScan();
-    clearInterval(scanDiagTimer);
-    $('scanShotImg').src = url;
-    $('scanShot').hidden = false;
+  // A cancelled or failed startup may resolve after the scanner has closed.
+  // In either case, do not install diagnostics over the useful error message.
+  if (openId !== scannerOpenId || $('scannerView').hidden) return;
+  if (started !== true) {
+    if (!scanHasError) onScanError();
+    return;
+  }
 
-    // Best case: hand the PNG straight to the OS share sheet.
-    try {
-      const blob = await (await fetch(url)).blob();
-      const file = new File([blob], 'scan-frame.png', { type: 'image/png' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        $('scanShotShare').hidden = false;
-        $('scanShotShare').onclick = () =>
-          navigator.share({ files: [file] }).catch(() => {});
-        return;
-      }
-    } catch (_) { /* fall through to long-press */ }
-    $('scanShotShare').hidden = true;
-  };
+  scanHasError = false;
+  setScanToolsEnabled(true);
+  $('scannerCapture').onclick = captureScanFrame;
+  startScanDiagnostics();
+}
 
-  $('scanShotClose').onclick = () => {
-    $('scanShot').hidden = true;
-    $('scanShotImg').src = '';
-    closeScanner();
-  };
+function closeScanner() {
+  scannerOpenId++;
+  scanHasError = false;
+  scanErrorContext = 'open';
+  $('scannerCapture').onclick = null;
+  clearScanDiagnostics();
+  setScanToolsEnabled(false);
+  stopBarcodeScan();
+  $('scannerView').hidden = true;
+  $('scanShot').hidden = true;
+  $('scanShotImg').src = '';
+  $('scanShotShare').hidden = true;
+  $('scanShotShare').onclick = null;
+}
 
+function onScanError(err) {
+  scanHasError = true;
+  clearScanDiagnostics();
+  setScanToolsEnabled(false);
+  $('scannerCapture').onclick = null;
+  const action = scanErrorContext === 'switch' ? 'switch cameras' : 'open the camera';
+  $('scannerHint').textContent = 'Could not ' + action +
+    (err && err.message ? ': ' + err.message : '.');
+}
+
+function setScanToolsEnabled(enabled) {
+  $('scannerCapture').disabled = !enabled;
+  const cameraCount = window.scanDiag && Number(window.scanDiag.cameraCount) || 0;
+  const canSwitch = typeof window.switchBarcodeCamera === 'function' && cameraCount > 1;
+  $('scannerSwitch').hidden = !canSwitch;
+  $('scannerSwitch').disabled = !enabled || !canSwitch;
+}
+
+function clearScanDiagnostics() {
   clearInterval(scanDiagTimer);
+  scanDiagTimer = null;
+}
+
+function startScanDiagnostics() {
+  clearScanDiagnostics();
   scanDiagTimer = setInterval(() => {
+    if (scanHasError || $('scannerView').hidden) return;
     const d = window.scanDiag;
-    if (!d) return;
+    if (!d || !d.width || !d.height) return;
     const secs = Math.max(1, Math.round((Date.now() - d.started) / 1000));
+    const camera = d.cameraCount > 1
+      ? ' · camera ' + d.cameraIndex + '/' + d.cameraCount : '';
     $('scannerHint').textContent =
-      d.width + 'x' + d.height + ' · ' + Math.round(d.attempts / secs) + '/s · ' +
+      d.width + 'x' + d.height + ' · ' + Math.round(d.attempts / secs) + '/s' + camera + ' · ' +
       'light ' + d.min + '-' + d.max + ' (spread ' + d.spread + ')';
   }, 500);
 }
 
-function closeScanner() {
-  $('scannerCapture').onclick = null;
-  clearInterval(scanDiagTimer);
-  scanDiagTimer = null;
-  stopBarcodeScan();
-  $('scannerView').hidden = true;
+async function switchScannerCamera() {
+  if ($('scannerSwitch').disabled || typeof window.switchBarcodeCamera !== 'function') return;
+
+  const openId = scannerOpenId;
+  clearScanDiagnostics();
+  scanHasError = false;
+  scanErrorContext = 'switch';
+  setScanToolsEnabled(false);
+  $('scannerHint').textContent = 'Switching camera…';
+
+  try {
+    const switched = await window.switchBarcodeCamera();
+    if (openId !== scannerOpenId || $('scannerView').hidden) return;
+    if (switched !== true) {
+      if (!scanHasError) onScanError();
+      return;
+    }
+
+    scanHasError = false;
+    scanErrorContext = 'open';
+    setScanToolsEnabled(true);
+    $('scannerCapture').onclick = captureScanFrame;
+    $('scannerHint').textContent = 'Point the camera at a barcode';
+    startScanDiagnostics();
+  } catch (err) {
+    if (openId === scannerOpenId) onScanError(err);
+  }
 }
 
-function onScanError(err) {
-  $('scannerHint').textContent = 'Could not open the camera' +
-    (err && err.message ? ': ' + err.message : '.');
+async function captureScanFrame() {
+  const url = window.dumpScanFrame && window.dumpScanFrame();
+  if (!url) { toast('No frame yet'); return; }
+
+  scannerOpenId++;
+  stopBarcodeScan();
+  clearScanDiagnostics();
+  setScanToolsEnabled(false);
+  $('scannerCapture').onclick = null;
+  $('scanShotShare').hidden = true;
+  $('scanShotShare').onclick = null;
+  $('scanShotImg').src = url;
+  $('scanShot').hidden = false;
+
+  // Hand the PNG straight to the OS share sheet when the browser supports it.
+  // Otherwise the full-screen image can still be long-pressed to save.
+  try {
+    const blob = await (await fetch(url)).blob();
+    const file = new File([blob], 'scan-frame.png', { type: 'image/png' });
+    if (!$('scanShot').hidden && navigator.canShare && navigator.canShare({ files: [file] })) {
+      $('scanShotShare').hidden = false;
+      $('scanShotShare').onclick = () =>
+        navigator.share({ files: [file] }).catch(() => {});
+    }
+  } catch (_) { /* fall through to long-press */ }
+}
+
+function closeScanShot() {
+  $('scanShot').hidden = true;
+  $('scanShotImg').src = '';
+  closeScanner();
 }
 
 async function onBarcodeScanned(code) {

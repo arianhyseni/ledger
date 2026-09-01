@@ -10,6 +10,7 @@ import '@fontsource/inter/600.css';  // Heading
 
 import './styles/app.css';
 import qrcode from 'qrcode-generator';
+import { createBarcodeScanner } from './barcode-scanner.js';
 
 const $ = id => document.getElementById(id);
 
@@ -25,6 +26,8 @@ const LOG_TAG = '[TillRoll]';
 
 function log(...args) { console.log(LOG_TAG, ...args); }
 function logError(context, err) { console.error(LOG_TAG, context + ':', err); }
+
+const barcodeScanner = createBarcodeScanner({ getElement: $, log });
 
 window.addEventListener('error', e => {
   logError('Uncaught error', e.error || e.message);
@@ -662,256 +665,6 @@ function initCustomControls() {
    into the app's normal boot path — nobody pays for it until they
    actually tap "scan". */
 
-let scanControls = null;
-
-/* Waits for the camera to actually deliver frames. Constraints resolve as soon
-   as the track exists, but videoWidth stays 0 until the first frame decodes —
-   focus hints applied before that are silently dropped by Android Chrome. */
-function waitForVideoFrames(video) {
-  if (video.videoWidth > 0) return Promise.resolve();
-  return new Promise(resolve => {
-    const done = () => { clearTimeout(timer); video.removeEventListener('loadedmetadata', done); resolve(); };
-    const timer = setTimeout(done, 2000);
-    video.addEventListener('loadedmetadata', done);
-  });
-}
-
-async function tuneBarcodeCamera(video) {
-  const stream = video && video.srcObject;
-  const track = stream && stream.getVideoTracks && stream.getVideoTracks()[0];
-  if (!track) return;
-
-  await waitForVideoFrames(video);
-
-  // Focus is what actually decides whether a barcode decodes: testing against
-  // generated EAN-13s showed a barcode filling only 15% of the frame still
-  // decodes when sharp, while a blurred one fails even at 50%. Resolution is
-  // rarely the constraint; sharpness is.
-  //
-  // Barcodes get held ~10cm away, which is inside the near limit of a camera
-  // still focused at infinity, so ask for close focus explicitly rather than
-  // relying on the default. Each hint is optional and applied independently —
-  // a browser that lacks one still keeps the others.
-  const capabilities = track.getCapabilities ? track.getCapabilities() : {};
-
-  const tryConstraint = async (advanced, label) => {
-    try {
-      await track.applyConstraints({ advanced: [advanced] });
-      return true;
-    } catch (err) {
-      log('Scanner ' + label + ' was not available:', err.message || err);
-      return false;
-    }
-  };
-
-  if (Array.isArray(capabilities.focusMode) && capabilities.focusMode.includes('continuous')) {
-    await tryConstraint({ focusMode: 'continuous' }, 'continuous autofocus');
-  }
-
-  // Nudge the lens toward its closest focusing distance for macro-range scanning.
-  if (capabilities.focusDistance && typeof capabilities.focusDistance.min === 'number') {
-    await tryConstraint({ focusDistance: capabilities.focusDistance.min }, 'near focus distance');
-  }
-
-  const settings = track.getSettings ? track.getSettings() : {};
-  log('Scanner stream:', {
-    width: settings.width,
-    height: settings.height,
-    frameRate: settings.frameRate,
-    facingMode: settings.facingMode,
-    focusMode: settings.focusMode,
-    focusDistance: settings.focusDistance
-  });
-}
-
-/* Draws the current video frame rotated 90deg into a scratch canvas and runs
-   ZXing's own canvas decoder over it, so an upright/vertical barcode is read
-   without the user having to turn the phone. Returns the text or null. */
-function makeRotatedDecoder(reader) {
-  let canvas = null;
-
-  return function decodeRotated(video) {
-    const w = video.videoWidth, h = video.videoHeight;
-    if (!w || !h) return null;
-
-    if (!canvas) canvas = document.createElement('canvas');
-    // Rotating 90deg swaps the axes.
-    if (canvas.width !== h || canvas.height !== w) {
-      canvas.width = h;
-      canvas.height = w;
-    }
-
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return null;
-
-    ctx.save();
-    ctx.translate(h / 2, w / 2);
-    ctx.rotate(Math.PI / 2);
-    ctx.drawImage(video, -w / 2, -h / 2);
-    ctx.restore();
-
-    try {
-      const result = reader.decodeFromCanvas(canvas);
-      return result ? result.getText() : null;
-    } catch (err) {
-      return null; // NotFound on this frame is the normal case.
-    }
-  };
-}
-
-async function startBarcodeScan(videoElId, onResult, onError) {
-  try {
-    const [{ BrowserMultiFormatReader }, { DecodeHintType, BarcodeFormat }] = await Promise.all([
-      import('@zxing/browser'),
-      import('@zxing/library')
-    ]);
-
-    // Retail barcode formats only — this is a grocery-price scanner,
-    // not a general QR/PDF417/Aztec reader. Narrowing the search
-    // space makes each frame decode faster and cuts down on misreads.
-    const hints = new Map([[DecodeHintType.POSSIBLE_FORMATS, [
-      BarcodeFormat.EAN_13, BarcodeFormat.EAN_8,
-      BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
-      BarcodeFormat.CODE_128, BarcodeFormat.CODE_39
-    ]]]);
-
-    // ZXing's default is one decode attempt every 500ms, which makes the
-    // scanner feel dead while the user holds a product steady. Barcodes are
-    // cheap to decode, so run the loop far more often.
-    const reader = new BrowserMultiFormatReader(hints, {
-      delayBetweenScanAttempts: 100,
-      delayBetweenScanSuccess: 500
-    });
-
-    // A 1D barcode is only found when its bars run across the scan lines, so a
-    // product held upright never decodes from the raw frame. Re-running the
-    // decode on a 90deg-rotated copy of the failed frame doubled the success
-    // rate in testing (8/16 -> 16/16 across framing and blur combinations).
-    const rotatedDecode = makeRotatedDecoder(reader);
-
-    const video = $(videoElId);
-    if (!video) throw new Error('Scanner preview is unavailable.');
-
-    // Asking for a labelled device before camera permission is unreliable on
-    // Android and can select an ultra-wide/auxiliary lens. Let the browser pick
-    // its main environment-facing camera and explicitly request an HD stream.
-    const preferred = {
-      audio: false,
-      video: {
-        facingMode: { ideal: 'environment' },
-        width: { min: 1280, ideal: 1920 },
-        height: { min: 720, ideal: 1080 },
-        frameRate: { ideal: 30, max: 30 }
-      }
-    };
-    const fallback = {
-      audio: false,
-      video: {
-        facingMode: { ideal: 'environment' },
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
-      }
-    };
-
-    let finished = false;
-    let rotateThisFrame = false;
-    // Diagnostics: surfaced via window.scanDiag so a real device can report
-    // whether the decode loop is actually running and what it is seeing.
-    const diag = window.scanDiag = {
-      attempts: 0, lastError: null, width: 0, height: 0, started: Date.now(),
-      min: 0, max: 0, spread: 0
-    };
-
-    /* Samples the centre band of the live frame and reports its luminance
-       range. If ZXing is capturing what the preview shows, a framed barcode
-       gives a wide spread (near-black bars against near-white quiet zone).
-       A narrow spread means the decoder is being handed a washed-out or
-       blank frame regardless of how good the preview looks. */
-    /* Dumps the exact frame handed to the decoder as a PNG data URL, so a
-       failing real-world frame can be pulled off the device and replayed
-       against the decoder offline. Call window.dumpScanFrame() from the
-       console, or long-press the preview. */
-    window.dumpScanFrame = () => {
-      const w = video.videoWidth, h = video.videoHeight;
-      if (!w || !h) return null;
-      const c = document.createElement('canvas');
-      c.width = w; c.height = h;
-      c.getContext('2d').drawImage(video, 0, 0);
-      return c.toDataURL('image/png');
-    };
-
-    let probeCanvas = null;
-    const probeFrame = () => {
-      const w = video.videoWidth, h = video.videoHeight;
-      if (!w || !h) return;
-      if (!probeCanvas) probeCanvas = document.createElement('canvas');
-      const pw = 160, ph = 60;
-      if (probeCanvas.width !== pw) { probeCanvas.width = pw; probeCanvas.height = ph; }
-      const ctx = probeCanvas.getContext('2d', { willReadFrequently: true });
-      if (!ctx) return;
-      // Centre band of the frame, scaled down.
-      ctx.drawImage(video, 0, h * 0.35, w, h * 0.3, 0, 0, pw, ph);
-      const px = ctx.getImageData(0, 0, pw, ph).data;
-      let mn = 255, mx = 0;
-      for (let i = 0; i < px.length; i += 4) {
-        const v = (px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114) | 0;
-        if (v < mn) mn = v;
-        if (v > mx) mx = v;
-      }
-      diag.min = mn; diag.max = mx; diag.spread = mx - mn;
-    };
-    const onDecoded = (result, err, controls) => {
-      if (finished) return;
-      diag.attempts++;
-      diag.width = video.videoWidth;
-      diag.height = video.videoHeight;
-      if (diag.attempts % 4 === 0) probeFrame();
-      if (err && err.name) diag.lastError = err.name;
-      if (result) {
-        finished = true;
-        onResult(result.getText());
-        return;
-      }
-
-      // ZXing reports NotFound on every miss, so this runs constantly. A failed
-      // decode costs ~30ms, so doing the upright and rotated passes on the same
-      // frame would blow past the 100ms scan interval on a phone. Alternating
-      // instead keeps each cycle to one decode and still covers both
-      // orientations several times a second.
-      rotateThisFrame = !rotateThisFrame;
-      if (!rotateThisFrame) return;
-
-      const rotated = rotatedDecode(video);
-      if (rotated) {
-        finished = true;
-        if (controls) controls.stop();
-        onResult(rotated);
-      }
-    };
-
-    stopBarcodeScan();
-    try {
-      scanControls = await reader.decodeFromConstraints(preferred, video, onDecoded);
-    } catch (err) {
-      const constraintFailure = err && (
-        err.name === 'OverconstrainedError' || err.name === 'ConstraintNotSatisfiedError'
-      );
-      if (!constraintFailure) throw err;
-      scanControls = await reader.decodeFromConstraints(fallback, video, onDecoded);
-    }
-
-    // Not awaited: focus tuning waits on the first frame, and blocking the
-    // caller on it would leave the scanner UI unresponsive until then.
-    tuneBarcodeCamera(video).catch(err => log('Scanner tuning failed:', err));
-  } catch (err) {
-    onError(err);
-  }
-}
-
-function stopBarcodeScan() {
-  if (scanControls) { scanControls.stop(); scanControls = null; }
-}
-
 /* ---------- toast ---------- */
 
 let toastTimer = null;
@@ -947,5 +700,6 @@ window.TillRollControls = {
   enhanceSelects,
   enhanceDateInputs
 };
-window.startBarcodeScan = startBarcodeScan;
-window.stopBarcodeScan = stopBarcodeScan;
+window.startBarcodeScan = barcodeScanner.start;
+window.stopBarcodeScan = barcodeScanner.stop;
+window.switchBarcodeCamera = barcodeScanner.switchCamera;
