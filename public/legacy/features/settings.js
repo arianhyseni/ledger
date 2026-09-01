@@ -107,7 +107,7 @@ async function doExport() {
   a.download = 'ledger-backup-' + today() + '.json';
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  toast('Backup exported. Receipt photos are not included.');
+  toast('Backup exported. Receipt photos and bill documents are not included.');
 }
 
 async function doImport(e) {
@@ -134,7 +134,7 @@ async function doImport(e) {
 
   const data = dump.data || {};
   const count = t => (Array.isArray(data[t]) ? data[t].length : 0);
-  const summary = `This backup holds ${count('expenses')} expenses, ${count('products')} products and ${count('prices')} price records. Importing replaces everything currently on this device with it.`;
+  const summary = `This backup holds ${count('expenses')} expenses, ${count('bills')} bills, ${count('products')} products and ${count('prices')} price records. Importing replaces everything currently on this device with it.`;
 
   if (!await appConfirm(summary, { okLabel: 'Replace my data', danger: true })) {
     e.target.value = ''; return;
@@ -157,7 +157,7 @@ async function doImport(e) {
 
 async function deleteAllData() {
   const ok = await appConfirmTyped(
-    'Deletes every expense, product, price and setting — from the server and this device. Receipt photos on this device are removed too. This cannot be undone. Export a backup first if you want to keep a copy. Type DELETE to confirm.',
+    'Deletes every expense, bill, product, price and setting — from the server and this device. Receipt photos and bill documents on this device are removed too. This cannot be undone. Export a backup first if you want to keep a copy. Type DELETE to confirm.',
     'DELETE',
     { okLabel: 'Delete everything' }
   );

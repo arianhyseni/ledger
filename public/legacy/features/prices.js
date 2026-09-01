@@ -16,7 +16,7 @@ function initPrices() {
   };
   $('productForm').onsubmit = saveProduct;
 
-  $('scanBtn').onclick = openScanner;
+  $('scanBtn').onclick = () => openScanner();
   $('scannerClose').onclick = closeScanner;
   $('scannerSwitch').onclick = switchScannerCamera;
   $('scanShotClose').onclick = closeScanShot;
@@ -34,10 +34,18 @@ let scanHasError = false;
 let scanErrorContext = 'open';
 let productLookupId = 0;
 let productLookupController = null;
+let scannerPrompt = 'Point the camera at a barcode';
 
-async function openScanner() {
-  cancelProductLookup();
-  clearProductLookupStatus();
+async function openScanner({
+  hint = 'Point the camera at a barcode',
+  mode = 'retail',
+  onCode = onBarcodeScanned
+} = {}) {
+  if (mode === 'retail') {
+    cancelProductLookup();
+    clearProductLookupStatus();
+  }
+  scannerPrompt = hint;
   const openId = ++scannerOpenId;
   clearScanDiagnostics();
   scanHasError = false;
@@ -45,14 +53,16 @@ async function openScanner() {
   setScanToolsEnabled(false);
   $('scannerCapture').onclick = null;
   $('scannerView').hidden = false;
-  $('scannerHint').textContent = 'Point the camera at a barcode';
+  $('scannerView').classList.toggle('qr-mode', mode === 'qr');
+  $('scannerHint').textContent = scannerPrompt;
 
   let started = false;
   try {
     started = await startBarcodeScan(
       'scannerVideo',
-      code => { if (openId === scannerOpenId) onBarcodeScanned(code); },
-      err => { if (openId === scannerOpenId) onScanError(err); }
+      code => { if (openId === scannerOpenId) onCode(code); },
+      err => { if (openId === scannerOpenId) onScanError(err); },
+      { mode }
     );
   } catch (err) {
     if (openId === scannerOpenId) onScanError(err);
@@ -77,11 +87,13 @@ function closeScanner() {
   scannerOpenId++;
   scanHasError = false;
   scanErrorContext = 'open';
+  scannerPrompt = 'Point the camera at a barcode';
   $('scannerCapture').onclick = null;
   clearScanDiagnostics();
   setScanToolsEnabled(false);
   stopBarcodeScan();
   $('scannerView').hidden = true;
+  $('scannerView').classList.remove('qr-mode');
   $('scanShot').hidden = true;
   $('scanShotImg').src = '';
   $('scanShotShare').hidden = true;
@@ -121,7 +133,7 @@ function startScanDiagnostics() {
     const camera = d.cameraCount > 1
       ? ' · camera ' + d.cameraIndex + '/' + d.cameraCount : '';
     $('scannerHint').textContent =
-      d.width + 'x' + d.height + ' · ' + Math.round(d.attempts / secs) + '/s' + camera + ' · ' +
+      scannerPrompt + ' · ' + d.width + 'x' + d.height + ' · ' + Math.round(d.attempts / secs) + '/s' + camera + ' · ' +
       'light ' + d.min + '-' + d.max + ' (spread ' + d.spread + ')';
   }, 500);
 }
@@ -148,7 +160,7 @@ async function switchScannerCamera() {
     scanErrorContext = 'open';
     setScanToolsEnabled(true);
     $('scannerCapture').onclick = captureScanFrame;
-    $('scannerHint').textContent = 'Point the camera at a barcode';
+    $('scannerHint').textContent = scannerPrompt;
     startScanDiagnostics();
   } catch (err) {
     if (openId === scannerOpenId) onScanError(err);

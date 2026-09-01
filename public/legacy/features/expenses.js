@@ -25,9 +25,16 @@ function initExpenses() {
 
 async function fillCategorySelects() {
   const cats = (await live('categories')).sort((a, b) => a.name.localeCompare(b.name));
-  const html = cats.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
-  $('exCategory').innerHTML = html;
-  $('pCategory').innerHTML = html;
+  $('exCategory').innerHTML = cats
+    .map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`)
+    .join('');
+
+  // Bills have their own workflow. Keep this category available for paid-bill
+  // expenses and reporting, but do not offer it when classifying products.
+  $('pCategory').innerHTML = cats
+    .filter(c => c.name.trim().toLowerCase() !== 'bills & utilities')
+    .map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`)
+    .join('');
 }
 
 async function fillStoreLists() {
@@ -144,21 +151,49 @@ async function openReceipt(expenseId) {
   if (!r) { toast('Receipt is stored on the device it was taken on.'); return; }
 
   const exp = await db.expenses.get(expenseId);
-  $('viewerImg').alt = exp
+  openViewerBlob(r.blob, {
+    label: 'Receipt',
+    alt: exp
     ? `Receipt for ${fromCents(exp.amount)} on ${dayLabel(exp.date)}`
-    : 'Receipt';
+      : 'Receipt'
+  });
+}
 
+function openViewerBlob(blob, { label, alt } = {}) {
   viewerReturnFocus = document.activeElement;
-  $('viewerImg').src = URL.createObjectURL(r.blob);
+  const objectUrl = URL.createObjectURL(blob);
+  const viewer = $('viewer');
+  const image = $('viewerImg');
+  const pdf = $('viewerPdf');
+  viewer.setAttribute('aria-label', label || 'Document');
+  viewer.dataset.objectUrl = objectUrl;
+
+  if (blob.type === 'application/pdf') {
+    image.hidden = true;
+    image.src = '';
+    pdf.hidden = false;
+    pdf.src = objectUrl;
+  } else {
+    pdf.hidden = true;
+    pdf.removeAttribute('src');
+    image.hidden = false;
+    image.alt = alt || label || 'Document';
+    image.src = objectUrl;
+  }
   $('viewer').hidden = false;
   document.addEventListener('keydown', onViewerKey);
   $('viewerClose').focus();
 }
 
 function closeViewer() {
-  if ($('viewerImg').src.startsWith('blob:')) URL.revokeObjectURL($('viewerImg').src);
+  const viewer = $('viewer');
+  if (viewer.dataset.objectUrl) URL.revokeObjectURL(viewer.dataset.objectUrl);
+  delete viewer.dataset.objectUrl;
   $('viewerImg').src = '';
-  $('viewer').hidden = true;
+  $('viewerImg').hidden = false;
+  $('viewerPdf').removeAttribute('src');
+  $('viewerPdf').hidden = true;
+  viewer.hidden = true;
   document.removeEventListener('keydown', onViewerKey);
   if (viewerReturnFocus && viewerReturnFocus.isConnected) viewerReturnFocus.focus();
   viewerReturnFocus = null;

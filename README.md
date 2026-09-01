@@ -5,7 +5,7 @@ stored in IndexedDB through Dexie, and optional account sync uses Supabase.
 
 ## Requirements
 
-- Node.js 22 or newer
+- Node.js 22.13 or newer
 - npm 10 or newer
 
 ## Development

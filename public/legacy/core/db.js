@@ -26,10 +26,19 @@ db.version(1).stores({
   meta:          'key'
 });
 
+db.version(2).stores({
+  bill_accounts: 'id, name, utility_type, next_due_date, dirty, updated_at',
+  bills:         'id, account_id, due_date, month, status, expense_id, dirty, updated_at, [account_id+due_date]'
+});
+
+db.version(3).stores({
+  bill_documents: 'id, bill_id'
+});
+
 // Tables that sync, in dependency order — parents before children.
 const SYNC_TABLES = [
   'categories', 'stores', 'products',
-  'expenses', 'prices', 'expense_items',
+  'bill_accounts', 'expenses', 'bills', 'prices', 'expense_items',
   'income', 'settings'
 ];
 
@@ -184,7 +193,7 @@ function dayLabel(dateStr) {
 /* ---------- backup ---------- */
 
 async function exportAll() {
-  const dump = { app: 'ledger', version: 2, exportedAt: now(), data: {} };
+  const dump = { app: 'ledger', version: 3, exportedAt: now(), data: {} };
   for (const t of SYNC_TABLES) dump.data[t] = await db[t].toArray();
   return dump;
 }

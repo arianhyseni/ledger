@@ -57,6 +57,18 @@ export function rankScannerCameras(devices) {
     (a.label || '').localeCompare(b.label || ''));
 }
 
+export function scannerFormats(BarcodeFormat, mode = 'retail') {
+  if (mode === 'qr') {
+    return [BarcodeFormat.QR_CODE, BarcodeFormat.DATA_MATRIX];
+  }
+  return [
+    BarcodeFormat.EAN_13, BarcodeFormat.EAN_8,
+    BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
+    BarcodeFormat.CODE_128, BarcodeFormat.CODE_39,
+    BarcodeFormat.ITF, BarcodeFormat.RSS_14
+  ];
+}
+
 function barcodeVideoConstraints(deviceId, relaxed = false) {
   const video = deviceId
     ? { deviceId: { exact: deviceId } }
@@ -376,8 +388,11 @@ export function createBarcodeScanner({ getElement, log = () => {} }) {
     return stream;
   }
 
-  async function start(videoElementId, onResult, onError, requestedDeviceId = null) {
+  async function start(videoElementId, onResult, onError, options = {}) {
     stop();
+    const settings = options && typeof options === 'object' ? options : {};
+    const requestedDeviceId = typeof options === 'string' ? options : settings.deviceId || null;
+    const mode = settings.mode === 'qr' ? 'qr' : 'retail';
     const video = getElement(videoElementId);
     const session = {
       id: ++nextSessionId,
@@ -389,6 +404,7 @@ export function createBarcodeScanner({ getElement, log = () => {} }) {
       cancelled: false,
       cameras: [],
       deviceId: null,
+      mode,
       onResult,
       onError,
       diag: {
@@ -414,12 +430,7 @@ export function createBarcodeScanner({ getElement, log = () => {} }) {
       if (session.cancelled || currentSession !== session) return false;
 
       const hints = new Map([
-        [DecodeHintType.POSSIBLE_FORMATS, [
-          BarcodeFormat.EAN_13, BarcodeFormat.EAN_8,
-          BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
-          BarcodeFormat.CODE_128, BarcodeFormat.CODE_39,
-          BarcodeFormat.ITF, BarcodeFormat.RSS_14
-        ]],
+        [DecodeHintType.POSSIBLE_FORMATS, scannerFormats(BarcodeFormat, mode)],
         // TRY_HARDER scans more rows and handles 90-degree rotation inside the
         // bounded guide crop, replacing the old second full-HD decode pass.
         [DecodeHintType.TRY_HARDER, true]
@@ -456,7 +467,10 @@ export function createBarcodeScanner({ getElement, log = () => {} }) {
     const currentIndex = cameras.findIndex(camera => camera.deviceId === current.deviceId);
     const nextCamera = cameras[(currentIndex + 1 + cameras.length) % cameras.length];
     if (!nextCamera) return false;
-    return start(current.video.id, current.onResult, current.onError, nextCamera.deviceId);
+    return start(current.video.id, current.onResult, current.onError, {
+      deviceId: nextCamera.deviceId,
+      mode: current.mode
+    });
   }
 
   return { start, stop, switchCamera };

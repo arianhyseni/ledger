@@ -12,6 +12,10 @@ import './styles/app.css';
 import qrcode from 'qrcode-generator';
 import { createBarcodeScanner } from './barcode-scanner.js';
 import { lookupProductByBarcode } from './product-lookup.js';
+import { billTiming, nextBillDueDate, recurrenceLabel } from './bill-schedule.js';
+import { scanBillDocument } from './bill-ocr.js';
+import { buildBillAlerts, buildBillTrend } from './bill-insights.js';
+import { parseBillQrPayload } from './bill-qr.js';
 
 const $ = id => document.getElementById(id);
 
@@ -42,7 +46,7 @@ const state = {
   screen: 'expenses'
 };
 
-const MONTHLY = ['expenses', 'insights'];
+const MONTHLY = ['expenses', 'bills', 'insights'];
 
 document.addEventListener('DOMContentLoaded', async () => {
   try {
@@ -50,6 +54,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initThemeToggle();
     initAuth();
     initExpenses();
+    initBills();
     initPrices();
     initSettings();
     initSync();
@@ -148,6 +153,7 @@ async function renderActive() {
     : (state.screen === 'prices' ? 'Prices & products' : 'Settings');
 
   if (state.screen === 'expenses') await renderExpenses();
+  if (state.screen === 'bills')    await renderBills();
   if (state.screen === 'prices')   await renderPrices();
   if (state.screen === 'insights') await renderInsights();
   if (state.screen === 'settings') await renderSettings();
@@ -705,3 +711,12 @@ window.startBarcodeScan = barcodeScanner.start;
 window.stopBarcodeScan = barcodeScanner.stop;
 window.switchBarcodeCamera = barcodeScanner.switchCamera;
 window.lookupProductByBarcode = lookupProductByBarcode;
+window.TillRollBills = {
+  billTiming,
+  nextBillDueDate,
+  recurrenceLabel,
+  buildBillAlerts,
+  buildBillTrend,
+  parseBillQrPayload
+};
+window.scanBillDocument = scanBillDocument;

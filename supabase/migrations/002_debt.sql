@@ -1,6 +1,6 @@
 -- ============================================================
 --  tillroll — migration 002
---  Monthly debt / loan repayment, stored per month alongside
+--  Monthly debt / loan repayment stored per month alongside
 --  income. Integer cents, same as every other amount.
 -- ============================================================
 

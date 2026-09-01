@@ -11,8 +11,8 @@
    device and has not sent it yet. Otherwise the newer
    updated_at wins.
 
-   Receipt photos never sync. They are the only large objects
-   in the app and would burn the storage quota for no benefit.
+   Receipt photos and bill documents never sync. They are the only large
+   objects in the app and would burn the storage quota for no benefit.
 --------------------------------------------------------- */
 
 // Columns that exist on the server, per table.
@@ -20,7 +20,9 @@ const REMOTE_FIELDS = {
   categories:    ['id', 'name', 'type', 'monthly_budget'],
   stores:        ['id', 'name', 'location', 'note'],
   products:      ['id', 'name', 'category_id', 'unit', 'barcode', 'note'],
+  bill_accounts: ['id', 'name', 'utility_type', 'account_reference', 'category_id', 'recurrence', 'default_amount', 'due_day', 'next_due_date', 'note', 'active'],
   expenses:      ['id', 'date', 'month', 'amount', 'category_id', 'store_id', 'note', 'has_receipt'],
+  bills:         ['id', 'account_id', 'due_date', 'month', 'amount', 'usage', 'usage_unit', 'status', 'paid_date', 'expense_id', 'note', 'has_document'],
   prices:        ['id', 'product_id', 'store_id', 'price', 'date', 'is_promo'],
   expense_items: ['id', 'expense_id', 'product_id', 'qty', 'unit_price'],
   income:        ['id', 'month', 'amount', 'debt', 'source', 'note'],
