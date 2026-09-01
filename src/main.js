@@ -815,8 +815,17 @@ async function startBarcodeScan(videoElId, onResult, onError) {
 
     let finished = false;
     let rotateThisFrame = false;
+    // Diagnostics: surfaced via window.scanDiag so a real device can report
+    // whether the decode loop is actually running and what it is seeing.
+    const diag = window.scanDiag = {
+      attempts: 0, lastError: null, width: 0, height: 0, started: Date.now()
+    };
     const onDecoded = (result, err, controls) => {
       if (finished) return;
+      diag.attempts++;
+      diag.width = video.videoWidth;
+      diag.height = video.videoHeight;
+      if (err && err.name) diag.lastError = err.name;
       if (result) {
         finished = true;
         onResult(result.getText());

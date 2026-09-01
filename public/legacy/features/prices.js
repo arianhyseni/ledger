@@ -24,13 +24,30 @@ function initPrices() {
    "+ New product" form with the barcode filled in. Price stays a
    manual entry either way, same as adding one without scanning. */
 
+let scanDiagTimer = null;
+
 async function openScanner() {
   $('scannerView').hidden = false;
   $('scannerHint').textContent = 'Point the camera at a barcode';
   await startBarcodeScan('scannerVideo', onBarcodeScanned, onScanError);
+
+  // Temporary on-device diagnostic: shows whether the decode loop is running
+  // and what resolution it is reading, so scanner problems can be diagnosed
+  // without a USB debugging session.
+  clearInterval(scanDiagTimer);
+  scanDiagTimer = setInterval(() => {
+    const d = window.scanDiag;
+    if (!d) return;
+    const secs = Math.max(1, Math.round((Date.now() - d.started) / 1000));
+    $('scannerHint').textContent =
+      d.width + 'x' + d.height + ' · ' + d.attempts + ' tries (' +
+      Math.round(d.attempts / secs) + '/s) · ' + (d.lastError || 'no error');
+  }, 500);
 }
 
 function closeScanner() {
+  clearInterval(scanDiagTimer);
+  scanDiagTimer = null;
   stopBarcodeScan();
   $('scannerView').hidden = true;
 }
