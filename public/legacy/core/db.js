@@ -35,10 +35,35 @@ db.version(3).stores({
   bill_documents: 'id, bill_id'
 });
 
+// Recurring expenses (loan payments, subscriptions, kindergarten, etc.) —
+// plain categorized spend on a schedule, distinct from bill_accounts:
+// no due date, no OCR, no paid/overdue status. Generates a real row in
+// expenses each active month (see recurring-expenses.js), so the two
+// tables' history never has to be reconciled — an expense is an expense.
+db.version(4).stores({
+  categories:          'id, name, group, dirty, updated_at',
+  recurring_expenses:  'id, category_id, active, dirty, updated_at',
+  expenses:            'id, date, category_id, store_id, month, recurring_expense_id, dirty, updated_at, [recurring_expense_id+month]'
+}).upgrade(async tx => {
+  // Every pre-existing category needs a group so the grouped Settings
+  // view and the Insights 50/30/20 split never show an "ungrouped"
+  // bucket. Default to the least presumptive group, then nudge the
+  // handful of seeded names that clearly belong elsewhere.
+  const FIXED_HINTS = ['bills & utilities', 'rent', 'insurance'];
+  const WANTS_HINTS = ['entertainment', 'eating out'];
+  await tx.table('categories').toCollection().modify(c => {
+    if (c.group) return;
+    const n = (c.name || '').trim().toLowerCase();
+    c.group = FIXED_HINTS.includes(n) ? 'fixed'
+      : WANTS_HINTS.includes(n) ? 'wants'
+        : 'variable';
+  });
+});
+
 // Tables that sync, in dependency order — parents before children.
 const SYNC_TABLES = [
   'categories', 'stores', 'products',
-  'bill_accounts', 'expenses', 'bills', 'prices', 'expense_items',
+  'bill_accounts', 'recurring_expenses', 'expenses', 'bills', 'prices', 'expense_items',
   'income', 'settings'
 ];
 
@@ -77,17 +102,27 @@ async function liveWhere(table, index, value) {
 
 /* ---------- seed ---------- */
 
+// group: which of the three fixed 50/30/20 buckets a category starts
+// in (users can move any category later from Settings). Needs
+// (fixed + variable) covers the essentials; wants is discretionary.
 const SEED_CATEGORIES = [
-  'Groceries', 'Household', 'Transport', 'Bills & utilities',
-  'Health', 'Clothing', 'Eating out', 'Kids',
-  'Entertainment', 'Other'
+  { name: 'Groceries', group: 'variable' },
+  { name: 'Household', group: 'variable' },
+  { name: 'Transport', group: 'variable' },
+  { name: 'Bills & utilities', group: 'fixed' },
+  { name: 'Health', group: 'variable' },
+  { name: 'Clothing', group: 'wants' },
+  { name: 'Eating out', group: 'wants' },
+  { name: 'Kids', group: 'variable' },
+  { name: 'Entertainment', group: 'wants' },
+  { name: 'Other', group: 'variable' }
 ];
 
 async function seed() {
   await db.transaction('rw', db.categories, db.settings, async () => {
     if (await db.categories.count() === 0) {
-      await db.categories.bulkAdd(SEED_CATEGORIES.map(name => stamp({
-        id: uuid(), name, type: 'expense', monthly_budget: 0
+      await db.categories.bulkAdd(SEED_CATEGORIES.map(({ name, group }) => stamp({
+        id: uuid(), name, type: 'expense', monthly_budget: 0, group
       })));
     }
     if (await db.settings.count() === 0) {
@@ -239,7 +274,8 @@ function convertV1(old) {
     id: id('categories', c.id),
     name: c.name,
     type: c.type || 'expense',
-    monthly_budget: c.monthlyBudget || 0
+    monthly_budget: c.monthlyBudget || 0,
+    group: c.group || 'variable'
   }));
 
   out.stores = (old.stores || []).map(s => ({

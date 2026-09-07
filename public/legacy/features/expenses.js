@@ -2,7 +2,10 @@
    expenses.js — income, expense entry, list, budget strip
 --------------------------------------------------------- */
 
-let pendingPhoto = null;
+// Shared on window, not a bare script-scoped variable, because the
+// Add-expense sheet (compiled as an ES module in main.js, a separate
+// top-level scope from this classic script) needs to read/write it too.
+window.pendingReceiptPhoto = null;
 
 function initExpenses() {
   $('incomeInput').onchange = saveIncome;
@@ -11,9 +14,9 @@ function initExpenses() {
   $('exDate').value = today();
 
   $('exPhoto').onchange = e => {
-    pendingPhoto = e.target.files[0] || null;
-    $('photoLabel').textContent = pendingPhoto ? 'Receipt attached' : 'Attach receipt';
-    $('exPhoto').parentElement.classList.toggle('has', !!pendingPhoto);
+    window.pendingReceiptPhoto = e.target.files[0] || null;
+    $('photoLabel').textContent = window.pendingReceiptPhoto ? 'Receipt attached' : 'Attach receipt';
+    $('exPhoto').parentElement.classList.toggle('has', !!window.pendingReceiptPhoto);
   };
 
   $('viewerClose').onclick = closeViewer;
@@ -25,9 +28,9 @@ function initExpenses() {
 
 async function fillCategorySelects() {
   const cats = (await live('categories')).sort((a, b) => a.name.localeCompare(b.name));
-  $('exCategory').innerHTML = cats
-    .map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`)
-    .join('');
+  const options = cats.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+  $('exCategory').innerHTML = options;
+  $('recCategory').innerHTML = options;
 
   // Bills have their own workflow. Keep this category available for paid-bill
   // expenses and reporting, but do not offer it when classifying products.
@@ -77,46 +80,96 @@ async function saveIncome() {
 
 /* ---------- expense CRUD ---------- */
 
+// Shared by the inline form and the Add-expense sheet: builds one
+// expense row (optionally with a receipt photo). When `repeat` is
+// given, this instead creates a recurring_expenses template — its own
+// materialization step generates this month's row, so no second row
+// is inserted here; the photo (a device-local attachment, not part of
+// the template) is attached to that generated row afterward.
+async function buildAndSaveExpense({ amount, date, categoryId, storeName, note, photo, repeat }) {
+  if (amount <= 0) throw new Error('Enter an amount above zero.');
+
+  const resolvedDate = date || today();
+
+  if (repeat) {
+    const rec = await saveRecurringExpense({
+      name: 'Recurring expense',
+      categoryId,
+      amount,
+      startMonth: monthOf(resolvedDate),
+      durationMode: repeat.durationMode,
+      durationMonths: repeat.durationMonths,
+      untilMonth: repeat.untilMonth,
+      note
+    });
+    const generated = await db.expenses
+      .where('[recurring_expense_id+month]')
+      .equals([rec.id, monthOf(resolvedDate)])
+      .first();
+    if (generated && photo) {
+      await db.expenses.put(stamp({ ...generated, has_receipt: true }));
+      await db.receipts.put({ id: uuid(), expense_id: generated.id, blob: photo, created_at: now() });
+    }
+    state.month = monthOf(resolvedDate);
+    await renderActive();
+    return generated;
+  }
+
+  const store_id = storeName ? await resolveStore(storeName) : null;
+  const id = uuid();
+  const row = stamp({
+    id,
+    date: resolvedDate,
+    month: monthOf(resolvedDate),
+    amount,
+    category_id: categoryId || null,
+    store_id,
+    note: (note || '').trim(),
+    has_receipt: !!photo,
+    recurring_expense_id: null
+  });
+  await db.expenses.put(row);
+
+  if (photo) {
+    await db.receipts.put({ id: uuid(), expense_id: id, blob: photo, created_at: now() });
+  }
+
+  state.month = monthOf(resolvedDate);
+  await renderActive();
+  scheduleSync();
+  return row;
+}
+
 async function saveExpense(e) {
   e.preventDefault();
 
   const amount = toCents($('exAmount').value);
   if (amount <= 0) { toast('Enter an amount above zero.'); return; }
 
-  const date = $('exDate').value || today();
-  const store_id = await resolveStore($('exStore').value);
-  const id = uuid();
-
-  await db.expenses.put(stamp({
-    id,
-    date,
-    month: monthOf(date),
-    amount,
-    category_id: $('exCategory').value || null,
-    store_id,
-    note: $('exNote').value.trim(),
-    has_receipt: !!pendingPhoto
-  }));
-
-  if (pendingPhoto) {
-    await db.receipts.put({
-      id: uuid(), expense_id: id, blob: pendingPhoto, created_at: now()
+  try {
+    await buildAndSaveExpense({
+      amount,
+      date: $('exDate').value,
+      categoryId: $('exCategory').value,
+      storeName: $('exStore').value,
+      note: $('exNote').value,
+      photo: window.pendingReceiptPhoto
     });
+  } catch (err) {
+    toast(err.message);
+    return;
   }
 
   // Keep date and store — expenses usually come in batches.
   $('exAmount').value = '';
   $('exNote').value = '';
-  pendingPhoto = null;
+  window.pendingReceiptPhoto = null;
   $('exPhoto').value = '';
   $('photoLabel').textContent = 'Attach receipt';
   $('exPhoto').parentElement.classList.remove('has');
 
-  state.month = monthOf(date);
-  await renderActive();
   $('exAmount').focus();
   toast('Expense saved.');
-  scheduleSync();
 }
 
 async function deleteExpense(id) {
@@ -202,6 +255,7 @@ function closeViewer() {
 /* ---------- render ---------- */
 
 async function renderExpenses() {
+  await ensureScheduledRecurringExpenses(state.month);
   const [incomeRows, expenses, cats, stores] = await Promise.all([
     liveWhere('income', 'month', state.month),
     liveWhere('expenses', 'month', state.month),
@@ -220,8 +274,48 @@ async function renderExpenses() {
   $('debtInput').value   = debt ? fromCents(debt) : '';
   document.querySelectorAll('.cur-sym').forEach(el => el.textContent = window.CURRENCY);
 
-  renderStrip(income, debt, spent);
+  renderStrip(income, debt, spent, await debtAlreadyCounted());
   renderExpenseList(expenses, catName, storeName);
+}
+
+// True once the one-time debt migration has converted a month's Loan /
+// debt figure into a recurring expense: that recurring expense's
+// generated row is already inside `spent`, so subtracting `debt` too
+// would count the same loan payment twice.
+async function debtAlreadyCounted() {
+  return !!(await getMeta('debtMigratedRecurringExpenseId', null));
+}
+
+// Pure budget math, shared by the Expenses strip and the Home hero so
+// the two screens can never show different numbers for the same month.
+function computeBudget(month, income, debt, spent, debtCounted) {
+  const effectiveDebt = debtCounted ? 0 : debt;
+  const available  = income - effectiveDebt;         // may be <= 0
+  const remaining  = available - spent;
+  const total      = daysInMonth(month);
+  const elapsedRaw = daysElapsed(month);              // 0 for future months
+  const nowMonth   = monthOf(today());
+  const isFuture   = month > nowMonth;
+  const isCurrent  = month === nowMonth;
+  const avgPerDay  = spent / Math.max(elapsedRaw, 1);
+  // A projection from zero elapsed days is meaningless — never fake one.
+  const projected  = isFuture ? 0 : Math.round(avgPerDay * total);
+  const target     = Number(window.SAVINGS_TARGET || 20);
+  const base       = Math.max(available, 0);
+  const pctSpent   = base > 0 ? Math.min(spent / base * 100, 100) : 0;
+  const pctProj    = base > 0 ? Math.min(projected / base * 100, 100) : 0;
+  const cap        = available - Math.round(income * target / 100);
+  const pctCap     = base > 0 ? cap / base * 100 : 0;
+  const saveRate   = income > 0 && !isFuture
+    ? Math.round((income - effectiveDebt - projected) / income * 100)
+    : null;
+
+  return {
+    income, debt: effectiveDebt, spent, available, remaining,
+    total, elapsedRaw, isFuture, isCurrent, avgPerDay, projected, target,
+    base, pctSpent, pctProj, pctCap, saveRate,
+    daysLeft: isCurrent ? total - elapsedRaw : (isFuture ? total : 0)
+  };
 }
 
 // The loan repayment is money already committed, so everything
@@ -229,18 +323,13 @@ async function renderExpenses() {
 // answers §10.1 of the product brief in order: what is available,
 // am I on pace, and what changed — with honest states when income
 // is missing, debt exceeds income, or the month hasn't started.
-function renderStrip(income, debt, spent) {
-  const available  = income - debt;                 // may be <= 0
-  const remaining  = available - spent;
-  const total      = daysInMonth(state.month);
-  const elapsedRaw = daysElapsed(state.month);      // 0 for future months
-  const nowMonth   = monthOf(today());
-  const isFuture   = state.month > nowMonth;
-  const isCurrent  = state.month === nowMonth;
-  const avgPerDay  = spent / Math.max(elapsedRaw, 1);
-  // A projection from zero elapsed days is meaningless — never fake one.
-  const projected  = isFuture ? 0 : Math.round(avgPerDay * total);
-  const target     = Number(window.SAVINGS_TARGET || 20);
+function renderStrip(income, debt, spent, debtCounted) {
+  const b = computeBudget(state.month, income, debt, spent, debtCounted);
+  const {
+    available, remaining, total, elapsedRaw, isFuture, isCurrent,
+    projected, avgPerDay, saveRate, daysLeft, base, pctSpent, pctProj, pctCap
+  } = b;
+  debt = b.debt; // legacy-debt already zeroed out once migrated
 
   /* ---- headline ---- */
   const eyebrow = $('heroEyebrow');
@@ -289,10 +378,6 @@ function renderStrip(income, debt, spent) {
   }
 
   /* ---- progress track (visuals clamp; text stays exact) ---- */
-  const base     = Math.max(available, 0);
-  const pctSpent = base > 0 ? Math.min(spent / base * 100, 100) : 0;
-  const pctProj  = base > 0 ? Math.min(projected / base * 100, 100) : 0;
-
   const fill = $('stripFill');
   fill.style.width = pctSpent + '%';
   fill.classList.toggle('over', base > 0 && spent > base);
@@ -304,8 +389,6 @@ function renderStrip(income, debt, spent) {
   // Savings-target marker: the spend level that would still meet the
   // target. Hidden near the edges where its label cannot fit legibly.
   const targetEl = $('stripTarget');
-  const cap = available - Math.round(income * target / 100);
-  const pctCap = base > 0 ? cap / base * 100 : 0;
   const showTarget = income > 0 && base > 0 && pctCap > 6 && pctCap < 94;
   targetEl.hidden = !showTarget;
   if (showTarget) targetEl.style.left = pctCap + '%';
@@ -319,18 +402,43 @@ function renderStrip(income, debt, spent) {
   /* ---- supporting metrics ---- */
   $('mAvg').textContent  = isFuture ? '—' : fromCents(Math.round(avgPerDay));
   $('mProj').textContent = isFuture ? '—' : fromCents(projected);
-  $('mSave').textContent = income > 0 && !isFuture
-    ? Math.round((income - debt - projected) / income * 100) + '%'
-    : '—';
-  $('mDays').textContent = isCurrent ? String(total - elapsedRaw)
-    : (isFuture ? String(total) : '0');
+  $('mSave').textContent = saveRate === null ? '—' : saveRate + '%';
+  $('mDays').textContent = String(daysLeft);
 }
 
+// Generated (recurring) rows are shown flat and separately from
+// hand-entered ones — a recurring expense already has at most one row
+// per month, so day-grouping would add nothing there; it's exactly
+// what a recurring template collapses.
 function renderExpenseList(expenses, catName, storeName) {
-  const list = $('expenseList');
-  $('entryCount').textContent = expenses.length ? expenses.length + ' total' : '';
+  const generated = expenses.filter(e => e.recurring_expense_id);
+  const manual = expenses.filter(e => !e.recurring_expense_id);
+  renderGeneratedSection(generated, catName);
+  renderManualSection(manual, catName, storeName);
+}
 
-  if (!expenses.length) {
+function renderGeneratedSection(generated, catName) {
+  $('recurringExpensesHead').hidden = !generated.length;
+  const total = generated.reduce((s, e) => s + e.amount, 0);
+  $('recurringExpensesTotal').textContent = generated.length ? fromCents(total) : '';
+
+  $('recurringExpensesList').innerHTML = generated.length
+    ? `<div class="daygroup recurring-card">${generated.map(e => `
+        <button class="entry" type="button" data-generated-expense="${e.id}" onclick="openGeneratedExpenseSheet('${e.id}')">
+          <div class="meta">
+            <div class="cat">${escapeHtml(catName[e.category_id] || 'Uncategorised')}</div>
+            <div class="sub"><span class="chip chip-recurring">Recurring</span> ${escapeHtml(e.note || dayLabel(e.date))}</div>
+          </div>
+          <div class="amt">${fromCents(e.amount)}</div>
+        </button>`).join('')}</div>`
+    : '';
+}
+
+function renderManualSection(manual, catName, storeName) {
+  const list = $('expenseList');
+  $('entryCount').textContent = manual.length ? manual.length + ' total' : '';
+
+  if (!manual.length) {
     // A current month with nothing at all gets a first-run nudge
     // rather than a bare grey box (§10.4); other months stay factual.
     const firstRun = state.month === monthOf(today());
@@ -345,11 +453,11 @@ function renderExpenseList(expenses, catName, storeName) {
     return;
   }
 
-  expenses.sort((a, b) =>
+  manual.sort((a, b) =>
     b.date.localeCompare(a.date) || (b.updated_at || '').localeCompare(a.updated_at || ''));
 
   const byDay = {};
-  for (const e of expenses) (byDay[e.date] ||= []).push(e);
+  for (const e of manual) (byDay[e.date] ||= []).push(e);
 
   list.innerHTML = Object.entries(byDay).map(([date, items]) => {
     const dayTotal = items.reduce((s, e) => s + e.amount, 0);

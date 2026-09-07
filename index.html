@@ -111,10 +111,42 @@
 
 <main id="appMain" hidden>
 
-<!-- ============ EXPENSES ============ -->
-<section class="screen" id="screen-expenses">
+<!-- ============ HOME ============ -->
+<section class="screen" id="screen-home" hidden>
 
-  <div class="card strip-card">
+  <div class="card home-hero">
+    <span class="eyebrow">Available this month</span>
+    <div class="hero-amount"><span id="homeAvailable">—</span><span class="cur cur-sym">&euro;</span></div>
+    <div class="pillbar">
+      <div class="pillbar-track"><div class="pillbar-fill" id="homePillFill"></div></div>
+      <span class="pillbar-label" id="homePillLabel"></span>
+    </div>
+
+    <button class="home-needswants" id="homeNeedsWants" type="button" hidden>
+      <div class="home-nw-head">
+        <span class="eyebrow">Needs vs wants</span>
+        <span class="linklike">Insights &rarr;</span>
+      </div>
+      <div class="segbar mini" id="homeMiniBar"></div>
+      <div class="home-nw-foot">
+        <span id="homeNeedsPct"></span>
+        <span id="homeWantsPct"></span>
+      </div>
+    </button>
+  </div>
+
+  <div class="listhead">
+    <span class="eyebrow">Recent expenses</span>
+    <button class="linkbtn compact" id="homeSeeAll" type="button">See all</button>
+  </div>
+  <div id="homeRecentList"></div>
+</section>
+
+<!-- ============ EXPENSES ============ -->
+<section class="screen" id="screen-expenses" hidden>
+
+  <details class="card strip-card pace-card">
+    <summary class="eyebrow pace-summary">Pace this month</summary>
     <span class="eyebrow" id="heroEyebrow">Available this month</span>
     <div class="hero-amount"><span id="heroRemaining">—</span><span class="cur cur-sym">&euro;</span></div>
     <p class="hero-equation" id="heroEquation" hidden></p>
@@ -153,9 +185,12 @@
       <div><dt>Save rate</dt><dd id="mSave">—</dd></div>
       <div><dt>Days left</dt><dd id="mDays">—</dd></div>
     </dl>
-  </div>
+  </details>
 
-  <form class="card form" id="expenseForm" autocomplete="off">
+  <!-- The full form stays as the desktop entry point and a fallback if
+       the sheet can't be used; on mobile the FAB / "Add expense" button
+       both open #addExpenseSheet instead. -->
+  <form class="card form" id="expenseForm" autocomplete="off" hidden>
     <span class="eyebrow">Add expense</span>
 
     <div class="row">
@@ -195,8 +230,18 @@
     </div>
   </form>
 
+  <div class="row expenses-add-row">
+    <button class="primary grow" id="expensesAddBtn" type="button">+ Add expense</button>
+  </div>
+
+  <div class="listhead" id="recurringExpensesHead" hidden>
+    <span class="eyebrow">Recurring this month</span>
+    <span class="eyebrow" id="recurringExpensesTotal"></span>
+  </div>
+  <div id="recurringExpensesList"></div>
+
   <div class="listhead">
-    <span class="eyebrow">Entries</span>
+    <span class="eyebrow">Entered by hand</span>
     <span class="eyebrow" id="entryCount"></span>
   </div>
   <div id="expenseList"></div>
@@ -400,6 +445,13 @@
 
 <!-- ============ SETTINGS ============ -->
 <section class="screen" id="screen-settings" hidden>
+<div id="settingsRoot">
+
+  <div class="card home-migration-card" id="debtMigrationCard" hidden>
+    <span class="eyebrow">Migration</span>
+    <p class="hint" id="debtMigrationText"></p>
+    <button class="ghost" id="debtMigrationReview" type="button">Review it</button>
+  </div>
 
   <div class="card" id="accountCard" hidden>
     <span class="eyebrow">Profile</span>
@@ -472,6 +524,20 @@
       <button class="ghost" id="addCategory" type="button">Add</button>
     </div>
     <div class="taglist" id="categoryList"></div>
+    <button class="linkbtn compact" id="manageGroupsBtn" type="button">Manage groups (needs / wants)</button>
+  </div>
+
+  <div class="card">
+    <button class="settings-row" id="openRecurringBtn" type="button">
+      <span class="icon-tile icon-tile-fixed">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v5h5M20 20v-5h-5"/><path d="M4.6 15A8 8 0 0 0 19 9M19.4 9A8 8 0 0 0 5 15"/></svg>
+      </span>
+      <span class="settings-row-meta">
+        <span class="cat">Recurring expenses</span>
+        <span class="sub" id="recurringExpensesCountLabel">—</span>
+      </span>
+      <svg class="settings-row-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+    </button>
   </div>
 
   <div class="card form">
@@ -504,6 +570,94 @@
       and from this device. This cannot be undone. Export first.</p>
     <button class="danger" id="deleteDataBtn" type="button">Delete all my data</button>
   </div>
+
+</div>
+
+<!-- ===== Settings > Categories (grouped, move-only) ===== -->
+<div id="settingsCatsSub" hidden>
+  <div class="subscreen-head">
+    <button class="iconbtn" id="settingsCatsBack" type="button" aria-label="Back to Settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
+    </button>
+    <span class="subscreen-title">Categories</span>
+  </div>
+  <p class="hint subscreen-hint">Every category sits in one of three groups used for the needs/wants split. Tap a category to move it.</p>
+  <div id="settingsCatsGroups"></div>
+</div>
+
+<!-- ===== Settings > Recurring expenses ===== -->
+<div id="settingsRecurringSub" hidden>
+  <div class="subscreen-head">
+    <button class="iconbtn" id="settingsRecurringBack" type="button" aria-label="Back to Settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
+    </button>
+    <span class="subscreen-title">Recurring expenses</span>
+    <button class="ghost compact" id="settingsRecurringNew" type="button">+ New</button>
+  </div>
+  <div class="listhead"><span class="eyebrow">Active</span></div>
+  <div id="settingsRecurringActive"></div>
+  <div class="listhead"><span class="eyebrow">Stopped</span></div>
+  <div id="settingsRecurringStopped"></div>
+</div>
+
+<!-- ===== Settings > Recurring expense editor ===== -->
+<div id="settingsRecurringEditSub" hidden>
+  <div class="subscreen-head">
+    <button class="linkbtn compact" id="settingsRecurringEditCancel" type="button">Cancel</button>
+    <span class="subscreen-title" id="settingsRecurringEditTitle">Recurring expense</span>
+    <button class="primary compact" id="settingsRecurringEditSave" type="button">Save</button>
+  </div>
+  <form class="card form" id="recurringEditForm" autocomplete="off">
+    <div class="row">
+      <div class="field grow">
+        <label for="recName">Name</label>
+        <input type="text" id="recName" placeholder="e.g. Home loan" required>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field grow">
+        <label for="recCategory">Category</label>
+        <select id="recCategory" required></select>
+      </div>
+      <div class="field grow">
+        <label for="recAmount">Amount / month</label>
+        <input type="number" id="recAmount" inputmode="decimal" step="0.01" min="0.01" placeholder="0.00" required>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field grow">
+        <label for="recStartMonth">Starts</label>
+        <input type="month" id="recStartMonth" required>
+      </div>
+      <div class="field grow">
+        <label for="recDuration">How long</label>
+        <select id="recDuration">
+          <option value="open">Until I stop</option>
+          <option value="months">For a number of months</option>
+          <option value="until">Until a chosen month</option>
+        </select>
+      </div>
+    </div>
+    <div class="row" id="recDurationMonthsRow" hidden>
+      <div class="field grow">
+        <label for="recDurationMonths">Number of months</label>
+        <input type="number" id="recDurationMonths" inputmode="numeric" min="1" max="60" value="12">
+      </div>
+    </div>
+    <div class="row" id="recUntilMonthRow" hidden>
+      <div class="field grow">
+        <label for="recUntilMonth">Last month</label>
+        <input type="month" id="recUntilMonth">
+      </div>
+    </div>
+    <div class="field">
+      <label for="recNote">Note</label>
+      <input type="text" id="recNote" placeholder="Optional">
+    </div>
+  </form>
+  <button class="linkdanger" id="settingsRecurringEditStop" type="button" hidden>Stop from next month</button>
+  <p class="hint subscreen-hint">Months already generated stay in your history.</p>
+</div>
 </section>
 
 </main>
@@ -544,11 +698,86 @@
   </div>
 </div>
 
+<div class="sheet-overlay" id="sheetOverlay" hidden>
+  <div class="sheet-backdrop" id="sheetBackdrop"></div>
+  <div class="sheet-bottom" id="sheetBody" role="dialog" aria-modal="true" tabindex="-1"></div>
+</div>
+
+<div class="sheet-full" id="addExpenseSheet" role="dialog" aria-modal="true" aria-label="New expense" hidden>
+  <div class="sheet-full-head">
+    <button class="sheet-head-cancel" id="addExpenseCancel" type="button" aria-label="Cancel" title="Cancel">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+    </button>
+    <h2 class="sheet-head-title">New expense</h2>
+    <button class="sheet-head-save" id="addExpenseSave" type="button" disabled>Save</button>
+  </div>
+
+  <div class="sheet-full-body">
+    <div class="keypad-amount">
+      <span class="eyebrow">Amount</span>
+      <div class="hero-amount keypad-amount-value">
+        <span class="cur">&euro;</span><span id="keypadAmount">0.00</span>
+      </div>
+      <span class="chip" id="addExpensePhotoChip" hidden>Receipt attached</span>
+    </div>
+
+    <div class="quickcats" id="addExpenseCats"></div>
+
+    <button class="repeatrow" id="addExpenseRepeatToggle" type="button" aria-expanded="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v5h5M20 20v-5h-5"/><path d="M4.6 15A8 8 0 0 0 19 9M19.4 9A8 8 0 0 0 5 15"/></svg>
+      <span>Repeat every month</span>
+      <span class="switch" id="repeatSwitch"><i></i></span>
+    </button>
+    <div class="repeatspans" id="repeatSpans" hidden>
+      <button type="button" class="repeatspan" data-span="open">Until I stop</button>
+      <button type="button" class="repeatspan" data-span="months">12 months</button>
+      <button type="button" class="repeatspan" data-span="until">Until a month</button>
+    </div>
+    <div class="field repeat-until-field" id="repeatUntilField" hidden>
+      <label for="repeatUntilMonth">Last month</label>
+      <input type="month" id="repeatUntilMonth">
+    </div>
+
+    <div id="addExpenseNoteWrap">
+      <input type="text" id="addExpenseNote" class="addexpense-note" placeholder="Store or note" hidden>
+      <button class="linkbtn compact" id="addExpenseNoteToggle" type="button">+ Add note or store</button>
+    </div>
+
+    <label class="shoot addexpense-shoot" for="addExpenseFullField">
+      <input type="text" id="addExpenseFullField" list="storeList" placeholder="More categories, date, receipt…" readonly>
+    </label>
+    <input type="file" id="addExpensePhoto" accept="image/*" capture="environment" hidden>
+  </div>
+
+  <div class="keypad" id="addExpenseKeypad">
+    <button type="button" class="keypad-key" data-key="1">1</button>
+    <button type="button" class="keypad-key" data-key="2">2</button>
+    <button type="button" class="keypad-key" data-key="3">3</button>
+    <button type="button" class="keypad-key" data-key="4">4</button>
+    <button type="button" class="keypad-key" data-key="5">5</button>
+    <button type="button" class="keypad-key" data-key="6">6</button>
+    <button type="button" class="keypad-key" data-key="7">7</button>
+    <button type="button" class="keypad-key" data-key="8">8</button>
+    <button type="button" class="keypad-key" data-key="9">9</button>
+    <button type="button" class="keypad-key keypad-key-accent" data-key="cam" aria-label="Attach receipt photo">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.25A1.75 1.75 0 0 1 5.75 6.5h1.19a1.75 1.75 0 0 0 1.487-.828l.577-.938A1.75 1.75 0 0 1 10.494 4h3.012a1.75 1.75 0 0 1 1.487.734l.578.938a1.75 1.75 0 0 0 1.487.828h1.19A1.75 1.75 0 0 1 20 8.25v9A1.75 1.75 0 0 1 18.25 19H5.75A1.75 1.75 0 0 1 4 17.25v-9Z"/><circle cx="12" cy="12.5" r="3.25"/></svg>
+    </button>
+    <button type="button" class="keypad-key" data-key="0">0</button>
+    <button type="button" class="keypad-key keypad-key-muted" data-key="del" aria-label="Backspace">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12l6.5-7h9.75A1.75 1.75 0 0 1 21 6.75v10.5A1.75 1.75 0 0 1 19.25 19H9.5L3 12Z"/><path d="M12.5 9.5l4 5m0-5l-4 5"/></svg>
+    </button>
+  </div>
+</div>
+
 <nav class="tabs" id="tabs" aria-label="Primary" hidden>
   <span class="tabs-brand" aria-hidden="true">TillRoll</span>
-  <button class="tab active" data-screen="expenses" aria-current="page">
+  <button class="tab active" data-screen="home" aria-current="page">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/><path d="M9.8 20v-5.6h4.4V20"/></svg>
+    <span>Home</span>
+  </button>
+  <button class="tab" data-screen="expenses">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a2.25 2.25 0 0 0-2.25-2.25H15a3 3 0 1 1-6 0H5.25A2.25 2.25 0 0 0 3 12m18 0v6a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 9m18 0V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v3"/></svg>
-    <span>Overview</span>
+    <span>Expenses</span>
   </button>
   <button class="tab" data-screen="bills">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.75h12a1.5 1.5 0 0 1 1.5 1.5v15l-2.5-1.5-2.5 1.5-2.5-1.5-2.5 1.5-2.5-1.5-2.5 1.5v-15A1.5 1.5 0 0 1 6 3.75Z"/><path d="M8 8.25h8M8 12h8M8 15.75h4"/></svg>
@@ -567,6 +796,10 @@
     <span>Settings</span>
   </button>
 </nav>
+
+<button class="fab-add" id="fabAdd" type="button" aria-label="Add expense" hidden>
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+</button>
 
 <div class="scanner" id="scannerView" hidden>
   <video id="scannerVideo" autoplay playsinline muted></video>
@@ -630,6 +863,8 @@
 <script src="/legacy/core/sync.js"></script>
 <script src="/legacy/features/expenses.js"></script>
 <script src="/legacy/features/bills.js"></script>
+<script src="/legacy/features/recurring-expenses.js"></script>
+<script src="/legacy/features/home.js"></script>
 <script src="/legacy/features/prices.js"></script>
 <script src="/legacy/features/insights.js"></script>
 <script src="/legacy/features/settings.js"></script>

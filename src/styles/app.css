@@ -54,6 +54,19 @@
   --color-bad: #B4231A;
   --color-bad-wash: #FCEAE8;
 
+  /* Needs/wants 50/30/20 group palette — fixed reuses the accent triad
+     (both mean "committed, non-discretionary"), variable and wants are
+     new hues so all three read apart at a glance and from each other. */
+  --color-fixed: #2746D8;
+  --color-fixed-wash: #E9EDFF;
+  --color-fixed-ink: #1D35A8;
+  --color-variable: #6B7FE0;
+  --color-variable-wash: #EEF1FE;
+  --color-variable-ink: #3C4EAE;
+  --color-wants: #B5860F;
+  --color-wants-wash: #FBF1E2;
+  --color-wants-ink: #7A4E0C;
+
   --radius-lg: 14px;
   --radius-md: 11px;
   --spacing-tap: 52px;
@@ -91,6 +104,16 @@
     --color-over-wash: #332713;
     --color-bad: #FF9B92;
     --color-bad-wash: #361B19;
+
+    --color-fixed: #9AAEFF;
+    --color-fixed-wash: #202B48;
+    --color-fixed-ink: #C0CBFF;
+    --color-variable: #8C9EEA;
+    --color-variable-wash: #232B44;
+    --color-variable-ink: #B6C2F5;
+    --color-wants: #E8C778;
+    --color-wants-wash: #362A12;
+    --color-wants-ink: #F1D89A;
 
     --shadow-card: 0 1px 2px rgba(0,0,0,.5);
     --shadow-up: 0 -2px 16px rgba(0,0,0,.55);
@@ -211,7 +234,12 @@ html.theme-transition .theme-icon .theme-moon {
 /* ---------------- layout ---------------- */
 main { @apply p-3 flex flex-col gap-3 max-w-[560px] mx-auto; }
 .screen { @apply flex flex-col gap-3; }
-.card { @apply bg-card border-none rounded-lg p-4 shadow-card; }
+/* Plain box-shadow, not the shadow-card utility: Tailwind bakes an
+   @apply'd shadow-* utility into a literal box-shadow value at build
+   time, so it stops tracking --shadow-card when the dark [data-theme]
+   block redefines that variable later. A direct var() reference stays
+   live and actually repaints for the theme in effect. */
+.card { @apply bg-card border-none rounded-lg p-4; box-shadow: var(--shadow-card); }
 .card.empty p { @apply mt-2.5 text-muted text-[15px]; }
 .listhead { @apply flex justify-between items-baseline; padding: 6px 6px 0; }
 
@@ -457,7 +485,7 @@ button.danger.grow { @apply flex-1; }
 
 /* ---------------- expense list ---------------- */
 #expenseList, #productList, #billList { @apply flex flex-col gap-3; }
-.daygroup { @apply bg-card border-none rounded-lg shadow-card overflow-hidden; }
+.daygroup { @apply bg-card border-none rounded-lg overflow-hidden; box-shadow: var(--shadow-card); }
 .dayhead {
   @apply flex justify-between items-center gap-2.5 bg-raise border-b border-hair text-ink-2 font-bold tracking-[.02em];
   padding: 11px 16px; font-size: 13px;
@@ -470,6 +498,7 @@ button.danger.grow { @apply flex-1; }
 }
 .entry:last-child { @apply border-b-0; }
 .entry:active { @apply bg-raise; }
+button.entry { @apply w-full border-none bg-card font-sans text-ink text-left; }
 .entry .meta, .prow .meta { @apply flex-1 min-w-0 text-left; }
 .cat { @apply text-[17px] tracking-[-.01em]; font-weight: var(--font-weight-subheading); }
 .sub { @apply mt-0.5 text-[13.5px] text-muted whitespace-nowrap overflow-hidden text-ellipsis; }
@@ -492,7 +521,8 @@ button.danger.grow { @apply flex-1; }
 
 /* ---------------- bills ---------------- */
 .bill-summary {
-  @apply mt-0 pt-0 bg-card rounded-lg p-4 border-none shadow-card;
+  @apply mt-0 pt-0 bg-card rounded-lg p-4 border-none;
+  box-shadow: var(--shadow-card);
 }
 .bill-summary dd { @apply text-[17px]; }
 .form-title-row { @apply flex items-start justify-between gap-3; }
@@ -619,7 +649,8 @@ button.primary.compact, .ghost.compact { @apply flex-none px-3 text-[14px]; min-
 }
 /* Screen-level "no stores yet" notice on Prices (§11.7) */
 .notice {
-  @apply flex flex-col gap-2.5 items-start bg-card border-none rounded-lg p-4 shadow-card;
+  @apply flex flex-col gap-2.5 items-start bg-card border-none rounded-lg p-4;
+  box-shadow: var(--shadow-card);
 }
 .notice .hint { @apply m-0; }
 .priceadd .promo {
@@ -740,17 +771,25 @@ button.primary.compact, .ghost.compact { @apply flex-none px-3 text-[14px]; min-
   .toast { @apply left-1/2 -translate-x-1/2 w-[536px]; right: auto; }
 }
 .tab {
-  @apply flex-1 flex flex-col items-center justify-center gap-0.5 border-none rounded-lg bg-transparent font-sans text-[12px] tracking-[-.005em] text-muted;
+  @apply flex-1 flex flex-col items-center justify-center gap-0.5 border-none rounded-lg bg-transparent font-sans text-[11px] tracking-[-.005em] text-muted;
   font-weight: var(--font-weight-label);
-  min-height: 56px; padding: 6px 2px;
+  min-height: 56px; padding: 6px 1px;
 }
 .tab svg {
-  @apply w-[22px] h-[22px];
+  @apply w-[21px] h-[21px];
   fill: none; stroke: currentColor; stroke-width: 1.8;
   stroke-linecap: round; stroke-linejoin: round;
 }
 .tab:active { @apply bg-raise; }
 .tab.active { @apply text-accent-ink bg-accent-wash font-bold shadow-none; }
+
+/* Six tabs plus the floating add-button is tight below ~380px — drop
+   the text label and keep the icon + accessible name instead of
+   dropping a destination. */
+@media (max-width: 380px) {
+  .tab span { @apply sr-only; }
+  .tab { gap: 0; }
+}
 
 @media (min-width: 1024px) {
   /* Only shift the canvas while the nav is actually shown — the
@@ -899,7 +938,7 @@ button.primary:active, .ghost:active, button.danger:active,
 .boot-retry { @apply mt-2; }
 
 .screen.auth { @apply flex items-center justify-center p-5; min-height: 100vh; }
-.authbox { @apply w-full max-w-[400px] bg-card border-none shadow-card rounded-[18px] p-6; }
+.authbox { @apply w-full max-w-[400px] bg-card border-none rounded-[18px] p-6; box-shadow: var(--shadow-card); }
 .brand { @apply mb-[22px]; }
 .brand h1 { @apply mt-[5px] text-[26px] tracking-[-.03em]; font-weight: var(--font-weight-heading); }
 .authmsg {
@@ -1007,3 +1046,213 @@ button.primary:active, .ghost:active, button.danger:active,
 .dialogbox .row { @apply mt-5; }
 .dialogbox .form { @apply mt-4; }
 .dialogbox-head { @apply flex items-center justify-between gap-3 -mt-1 -mr-1; }
+
+/* ---------------- design-refresh primitives ---------------- */
+
+/* Home hero + pill progress bar */
+.home-hero { @apply flex flex-col; }
+.pillbar { @apply mt-3 flex items-center gap-2.5; }
+.pillbar-track { @apply flex-1 h-2 rounded-full bg-raise overflow-hidden; }
+.pillbar-fill { @apply h-full rounded-full bg-accent; width: 0; transition: width .35s ease; }
+.pillbar-fill.over { @apply bg-bad; }
+.pillbar-label { @apply text-[13px] font-semibold text-muted tabular-nums flex-none; }
+
+.home-needswants {
+  @apply block w-full mt-4 pt-3.5 border-t border-hair bg-transparent border-l-0 border-r-0 border-b-0 text-left;
+  border-top-style: solid;
+}
+.home-nw-head { @apply flex items-baseline justify-between gap-2.5; }
+.linklike { @apply text-accent text-[13px] font-bold; }
+.home-nw-foot { @apply flex justify-between mt-2 text-[13px] font-semibold text-ink-2 tabular-nums; }
+
+/* Segmented (needs/wants/fixed) bar, used on Home (mini) and Insights */
+.segbar { @apply flex gap-[3px] h-8 rounded-[10px] overflow-hidden mt-3; }
+.segbar.mini { @apply h-2.5 rounded-full mt-2.5; }
+.segbar-seg {
+  @apply flex items-center justify-center text-[12px] font-bold text-white tabular-nums;
+  min-width: 0; transition: width .4s cubic-bezier(.2,.7,.3,1);
+}
+.segbar.mini .segbar-seg { font-size: 0; border-radius: 999px; }
+.segbar-fixed { background: var(--color-fixed); }
+.segbar-variable { background: var(--color-variable); }
+.segbar-wants { background: var(--color-wants); }
+.segbar-dot { @apply inline-block w-2.5 h-2.5 rounded-full flex-none; }
+.segbar-dot.segbar-fixed, span.segbar-fixed.segbar-dot { background: var(--color-fixed); }
+.segbar-dot.segbar-variable, span.segbar-variable.segbar-dot { background: var(--color-variable); }
+.segbar-dot.segbar-wants, span.segbar-wants.segbar-dot { background: var(--color-wants); }
+
+.segbar-ticks { @apply relative h-2.5 mt-1; }
+.segbar-ticks span { @apply absolute top-0 w-[2px] h-2 rounded-[1px] bg-line; }
+
+.group-tiles { @apply mt-3.5; }
+.group-tile { @apply flex-1 rounded-2xl p-3.5; }
+.group-tile .amt { @apply mt-1 text-[22px] font-bold tabular-nums tracking-[-.03em]; }
+.group-tile-needs { background: var(--color-fixed-wash); }
+.group-tile-needs .eyebrow, .group-tile-needs .amt, .group-tile-needs .dim { color: var(--color-fixed-ink); }
+.group-tile-wants { background: var(--color-wants-wash); }
+.group-tile-wants .eyebrow, .group-tile-wants .amt, .group-tile-wants .dim { color: var(--color-wants-ink); }
+
+.group-breakdown { @apply mt-3.5 pt-3.5 border-t border-hair; }
+.group-breakdown:first-of-type { @apply mt-4 pt-4; }
+.group-breakdown-head { @apply flex items-center gap-2 text-[14px] font-semibold; }
+.group-breakdown-head .num { @apply ml-auto font-bold; }
+.barrow-mini { @apply flex justify-between mt-1.5 pl-4.5 text-[13.5px] text-ink-2; }
+
+/* Icon tiles (category glyphs, settings rows) */
+.icon-tile {
+  @apply w-11 h-11 flex-none flex items-center justify-center rounded-2xl;
+  background: var(--color-raise); color: var(--color-ink-2);
+}
+.icon-tile svg {
+  @apply w-[20px] h-[20px];
+  fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.icon-tile-fixed { background: var(--color-fixed-wash); color: var(--color-fixed-ink); }
+.icon-tile-variable { background: var(--color-variable-wash); color: var(--color-variable-ink); }
+.icon-tile-wants { background: var(--color-wants-wash); color: var(--color-wants-ink); }
+
+/* Recurring-expense entries and chips */
+.chip-recurring { @apply mr-1.5; }
+.recurring-card { border: 1.5px solid var(--color-fixed-wash); }
+.pace-card { @apply cursor-pointer; }
+.pace-summary { @apply cursor-pointer list-none; }
+.pace-summary::-webkit-details-marker { display: none; }
+.pace-summary::after { content: " \203A"; font-family: var(--font-mono); }
+details[open] > .pace-summary::after { content: " \2039"; }
+.expenses-add-row { @apply mt-1; }
+
+/* Settings rows (Recurring expenses entry point) */
+.settings-row { @apply flex items-center gap-3.5 w-full text-left bg-transparent border-none; min-height: 64px; padding: 4px 2px; }
+.settings-row-meta { @apply flex-1 min-w-0; }
+.settings-row-meta .cat { @apply text-[16px]; font-weight: var(--font-weight-subheading); }
+.settings-row-meta .sub { @apply mt-0.5 text-[13px] text-muted; }
+.settings-row-chevron { @apply w-[18px] h-[18px] flex-none text-muted; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.home-migration-card { background: var(--color-wants-wash); }
+.home-migration-card .hint { color: var(--color-wants-ink); }
+.home-migration-card .ghost { @apply mt-1; }
+
+/* Sub-screen header (Settings > Categories / Recurring) */
+.subscreen-head { @apply flex items-center gap-2 sticky top-0 z-1 bg-card border-b border-hair; padding: 10px 4px 12px; }
+.subscreen-title { @apply flex-1 text-[16px] font-bold tracking-[-.015em]; }
+.subscreen-hint { @apply px-3; }
+#settingsCatsSub, #settingsRecurringSub, #settingsRecurringEditSub { @apply p-3 flex flex-col gap-3 max-w-[560px] mx-auto; }
+
+/* ---------------- bottom sheet ---------------- */
+.sheet-overlay { @apply fixed inset-0 z-13; }
+.sheet-backdrop { @apply absolute inset-0; background: rgba(9,13,17,.42); animation: fadeIn .18s ease both; }
+.sheet-bottom {
+  @apply absolute left-0 right-0 bottom-0 bg-card border-none p-4;
+  border-radius: 26px 26px 0 0;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  box-shadow: 0 -10px 40px rgba(9,13,17,.18);
+  animation: panelIn .22s cubic-bezier(.16,1,.3,1) both;
+  max-width: 560px; margin: 0 auto;
+}
+.sheet-handle { @apply w-9 h-1 mx-auto mb-4 rounded-full bg-line; }
+.sheet-title { @apply text-[17px] font-bold tracking-[-.015em]; }
+.sheet-options { @apply flex flex-col gap-2.5 mt-4; }
+.sheet-option {
+  @apply flex items-center gap-3 w-full text-left bg-card border-[1.5px] border-hair rounded-2xl;
+  min-height: 58px; padding: 0 16px; font-size: 16px; font-weight: 600; color: var(--color-ink);
+}
+.sheet-option.sel { @apply bg-accent-wash border-accent; }
+.sheet-option-label { @apply flex-1; }
+.sheet-option-check { @apply text-accent font-bold opacity-0; }
+.sheet-option.sel .sheet-option-check { @apply opacity-100; }
+
+/* ---------------- add-expense full-screen sheet ---------------- */
+.sheet-full { @apply fixed inset-0 z-11 flex flex-col bg-paper; }
+.sheet-full-head {
+  @apply grid items-center gap-2 bg-card border-b border-hair;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  min-height: 68px;
+  padding: calc(10px + env(safe-area-inset-top)) max(14px, calc(50% - 280px)) 10px;
+  box-shadow: 0 1px 10px rgba(17,24,32,.04);
+}
+.sheet-head-title {
+  @apply m-0 text-center text-[18px] whitespace-nowrap text-ink;
+  font-weight: var(--font-weight-heading);
+  letter-spacing: -.02em;
+}
+.sheet-head-cancel,
+.sheet-head-save {
+  @apply flex items-center justify-center border-none font-sans font-semibold;
+  min-height: 44px;
+}
+.sheet-head-cancel {
+  @apply justify-self-start w-11 rounded-full bg-raise text-ink-2 p-0;
+}
+.sheet-head-cancel svg {
+  @apply w-5 h-5;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.sheet-head-save {
+  @apply justify-self-end rounded-xl bg-accent text-white px-4 text-[14px];
+  min-width: 64px;
+}
+.sheet-head-cancel:active { @apply bg-line; }
+.sheet-head-save:active:not(:disabled) { @apply bg-accent-ink; }
+.sheet-head-save:disabled {
+  @apply bg-raise text-muted opacity-100;
+}
+.sheet-full-body { @apply flex-1 min-h-0 overflow-y-auto p-3.5 flex flex-col gap-1; max-width: 560px; margin: 0 auto; width: 100%; }
+.keypad-amount { @apply flex flex-col items-center gap-1.5 py-4; }
+.keypad-amount-value { @apply mt-0; }
+.keypad-amount-value #keypadAmount.dim { color: var(--color-line); }
+
+.quickcats { @apply grid grid-cols-3 gap-2.5 mt-2; }
+.quickcat {
+  @apply flex flex-col items-center gap-1.5 rounded-2xl bg-raise border-[1.5px] border-transparent text-ink-2;
+  padding: 12px 6px; font-size: 12.5px; font-weight: 600;
+}
+.quickcat.sel { @apply bg-accent-wash border-accent text-accent-ink; }
+
+.repeatrow {
+  @apply flex items-center gap-2.5 w-full mt-3 rounded-2xl bg-raise border-[1.5px] border-transparent text-ink;
+  min-height: 52px; padding: 0 14px;
+}
+.repeatrow svg { @apply w-[18px] h-[18px]; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.repeatrow span:nth-child(2) { @apply flex-1 text-left text-[15px] font-semibold; }
+.repeatrow.on, .repeatrow[aria-expanded="true"] { @apply border-accent bg-accent-wash; }
+.switch { @apply w-[46px] h-7 flex-none rounded-full bg-line flex items-center; padding: 3px; transition: background .2s ease; }
+.repeatrow.on .switch, .repeatrow[aria-expanded="true"] .switch { @apply bg-accent; justify-content: flex-end; }
+.switch i { @apply block w-[22px] h-[22px] rounded-full bg-card; box-shadow: 0 1px 3px rgba(17,24,32,.3); }
+
+.repeatspans { @apply grid grid-cols-3 gap-1.5 mt-2.5; }
+.repeatspan { @apply rounded-xl bg-raise text-ink-2 text-[13px] font-bold; min-height: 44px; }
+.repeatspan.sel { @apply bg-accent text-white; }
+.repeat-until-field { @apply mt-2.5; }
+
+.addexpense-note { @apply mt-2.5; }
+.addexpense-shoot { @apply mt-3; }
+
+.keypad { @apply grid grid-cols-3 gap-2.5 bg-card border-t border-hair; padding: 12px 14px calc(12px + env(safe-area-inset-bottom)); }
+.keypad-key {
+  @apply flex items-center justify-center rounded-2xl bg-raise text-ink font-bold tabular-nums border-none;
+  min-height: 58px; font-size: 24px;
+}
+.keypad-key-accent { @apply bg-accent-wash text-accent; }
+.keypad-key-accent svg { @apply w-[22px] h-[22px]; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.keypad-key-muted { @apply bg-raise text-muted; }
+.keypad-key-muted svg { @apply w-[20px] h-[20px]; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------------- floating add button ---------------- */
+.fab-add {
+  @apply fixed z-6 flex items-center justify-center rounded-[20px] bg-accent text-white border-none;
+  width: 56px; height: 56px;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 84px);
+  transform: translateX(-50%);
+  box-shadow: 0 8px 22px rgba(35,64,214,.4);
+}
+:root[data-theme="dark"] .fab-add { box-shadow: 0 8px 22px rgba(0,0,0,.5); }
+.fab-add svg { @apply w-6 h-6; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.fab-add:active { transform: translateX(-50%) scale(.94); }
+@media (min-width: 1024px) {
+  .fab-add { display: none; }
+}

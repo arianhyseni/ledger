@@ -16,6 +16,9 @@ import { billTiming, nextBillDueDate, recurrenceLabel } from './bill-schedule.js
 import { scanBillDocument } from './bill-ocr.js';
 import { buildBillAlerts, buildBillTrend } from './bill-insights.js';
 import { parseBillPaymentCode, parseBillQrPayload } from './bill-qr.js';
+import {
+  monthIndex, monthFromIndex, isRecurringActiveInMonth, monthsToMaterialize, durationLabel
+} from './recurring-expense-schedule.js';
 
 const $ = id => document.getElementById(id);
 
@@ -43,10 +46,11 @@ window.addEventListener('unhandledrejection', e => {
 
 const state = {
   month: monthOf(today()),
-  screen: 'expenses'
+  screen: 'home',
+  settingsSub: null
 };
 
-const MONTHLY = ['expenses', 'bills', 'insights'];
+const MONTHLY = ['home', 'expenses', 'bills', 'insights'];
 
 document.addEventListener('DOMContentLoaded', async () => {
   try {
@@ -55,6 +59,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     initAuth();
     initExpenses();
     initBills();
+    initHome();
+    initAddExpenseSheet();
     initPrices();
     initSettings();
     initSync();
@@ -120,6 +126,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function bootData() {
   window.CURRENCY = await getSetting('currency', '\u20AC');
   window.SAVINGS_TARGET = await getSetting('savingsTarget', 20);
+  await migrateDebtToRecurringExpense();
   await fillCategorySelects();
   await fillStoreLists();
 }
@@ -152,6 +159,7 @@ async function renderActive() {
     ? monthLabel(state.month)
     : (state.screen === 'prices' ? 'Prices & products' : 'Settings');
 
+  if (state.screen === 'home')     await renderHome();
   if (state.screen === 'expenses') await renderExpenses();
   if (state.screen === 'bills')    await renderBills();
   if (state.screen === 'prices')   await renderPrices();
@@ -326,6 +334,222 @@ function appConfirmTyped(message, requireMatch, opts = {}) {
     requireMatch,
     placeholder: requireMatch
   });
+}
+
+/* ---------- bottom sheet ----------
+   A slide-up panel for the new pickers (move category, choose a
+   recurring expense's duration, edit-scope) — visually distinct from
+   showDialog's centered modal, but the same on-page footprint: one
+   overlay element in index.html, filled and shown on demand rather
+   than templated per call site. Does not replace .fancy-select/
+   .fancy-date, which keep their own dropdown-panel mechanism. */
+
+let sheetReturnFocus = null;
+
+function onSheetKey(e) {
+  if (e.key === 'Escape') closeBottomSheet();
+}
+
+// html: the sheet body markup (a title + whatever picker rows).
+// wire: optional callback(sheetEl) run after the markup is in the DOM,
+// for attaching click handlers to the freshly rendered rows.
+function openBottomSheet(html, wire) {
+  const overlay = $('sheetOverlay');
+  const backdrop = $('sheetBackdrop');
+  const sheet = $('sheetBody');
+
+  sheetReturnFocus = document.activeElement;
+  sheet.innerHTML = html;
+  overlay.hidden = false;
+  backdrop.onclick = closeBottomSheet;
+  document.addEventListener('keydown', onSheetKey);
+
+  if (typeof wire === 'function') wire(sheet);
+
+  const focusable = sheet.querySelector('button, [href], input, select, textarea, [tabindex]');
+  (focusable || sheet).focus?.();
+}
+
+function closeBottomSheet() {
+  const overlay = $('sheetOverlay');
+  if (overlay.hidden) return;
+  overlay.hidden = true;
+  $('sheetBody').innerHTML = '';
+  document.removeEventListener('keydown', onSheetKey);
+  if (sheetReturnFocus && sheetReturnFocus.isConnected) sheetReturnFocus.focus();
+  sheetReturnFocus = null;
+}
+
+/* ---------- add-expense sheet ----------
+   A full-screen keypad entry flow: type an amount, tap a category
+   tile, optionally mark it repeating or add a note, save. The
+   decorative camera key from the design is wired to the same
+   hidden-file-input receipt flow the inline form already used, so
+   nothing about receipts is lost by replacing that form. Any
+   category not in the quick 6 stays reachable through "More…", which
+   opens the exact same fancy-select the inline form used. */
+
+const addExpenseState = {
+  cents: '', categoryId: '', repeat: false,
+  durationMode: 'open', untilMonth: '', noteOpen: false, returnFocus: null
+};
+
+async function mostUsedCategoryIds(limit) {
+  const cutoff = shiftMonth(monthOf(today()), -3) + '-01';
+  const recent = (await live('expenses')).filter(e => e.date >= cutoff && e.category_id);
+  const counts = {};
+  for (const e of recent) counts[e.category_id] = (counts[e.category_id] || 0) + 1;
+  const cats = (await live('categories')).sort((a, b) => a.name.localeCompare(b.name));
+  const ranked = cats
+    .map(c => ({ c, n: counts[c.id] || 0 }))
+    .sort((a, b) => b.n - a.n || a.c.name.localeCompare(b.c.name))
+    .map(({ c }) => c);
+  return ranked.slice(0, limit);
+}
+
+function addExpenseAmountValue() {
+  return addExpenseState.cents ? parseInt(addExpenseState.cents, 10) : 0;
+}
+
+function paintAddExpenseAmount() {
+  const cents = addExpenseAmountValue();
+  const el = $('keypadAmount');
+  el.textContent = fromCents(cents);
+  el.classList.toggle('dim', !addExpenseState.cents);
+  $('addExpenseSave').disabled = cents <= 0;
+}
+
+function paintAddExpenseCats(cats) {
+  $('addExpenseCats').innerHTML = cats.map(c => `
+    <button type="button" class="quickcat${c.id === addExpenseState.categoryId ? ' sel' : ''}" data-cat="${c.id}">
+      <span class="icon-tile icon-tile-${c.group || 'variable'}">${categoryIconSvg(c.name)}</span>
+      <span>${c.name}</span>
+    </button>`).join('') +
+    `<button type="button" class="quickcat" id="addExpenseMoreCat">
+      <span class="icon-tile icon-tile-variable"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg></span>
+      <span>More…</span>
+    </button>`;
+
+  $('addExpenseCats').querySelectorAll('.quickcat[data-cat]').forEach(btn => {
+    btn.onclick = () => {
+      addExpenseState.categoryId = btn.dataset.cat;
+      $('addExpenseCats').querySelectorAll('.quickcat').forEach(b => b.classList.toggle('sel', b === btn));
+    };
+  });
+  $('addExpenseMoreCat').onclick = () => $('exCategory').closest('.fancy-select').querySelector('.fancy-select-trigger').click();
+}
+
+function paintAddExpenseRepeat() {
+  $('addExpenseRepeatToggle').setAttribute('aria-expanded', String(addExpenseState.repeat));
+  $('addExpenseRepeatToggle').classList.toggle('on', addExpenseState.repeat);
+  $('repeatSpans').hidden = !addExpenseState.repeat;
+  $('repeatSpans').querySelectorAll('.repeatspan').forEach(btn =>
+    btn.classList.toggle('sel', btn.dataset.span === addExpenseState.durationMode));
+  $('repeatUntilField').hidden = addExpenseState.durationMode !== 'until';
+}
+
+async function openAddExpenseSheet() {
+  addExpenseState.cents = '';
+  addExpenseState.categoryId = '';
+  addExpenseState.repeat = false;
+  addExpenseState.durationMode = 'open';
+  addExpenseState.untilMonth = '';
+  addExpenseState.noteOpen = false;
+  addExpenseState.returnFocus = document.activeElement;
+  window.pendingReceiptPhoto = null;
+
+  $('addExpensePhotoChip').hidden = true;
+  $('addExpenseNote').value = '';
+  $('addExpenseNote').hidden = true;
+  $('addExpenseNoteToggle').hidden = false;
+  $('addExpensePhoto').value = '';
+  $('addExpenseFullField').value = '';
+
+  const cats = await mostUsedCategoryIds(6);
+  if (cats.length && !addExpenseState.categoryId) addExpenseState.categoryId = cats[0].id;
+  paintAddExpenseCats(cats);
+  paintAddExpenseAmount();
+  paintAddExpenseRepeat();
+
+  $('addExpenseSheet').hidden = false;
+  document.addEventListener('keydown', onAddExpenseKey);
+}
+
+function onAddExpenseKey(e) {
+  if (e.key === 'Escape') closeAddExpenseSheet();
+}
+
+function closeAddExpenseSheet() {
+  $('addExpenseSheet').hidden = true;
+  document.removeEventListener('keydown', onAddExpenseKey);
+  if (addExpenseState.returnFocus && addExpenseState.returnFocus.isConnected) addExpenseState.returnFocus.focus();
+}
+
+function initAddExpenseSheet() {
+  $('fabAdd').onclick = openAddExpenseSheet;
+  $('expensesAddBtn').onclick = openAddExpenseSheet;
+  $('addExpenseCancel').onclick = closeAddExpenseSheet;
+
+  $('addExpenseKeypad').querySelectorAll('.keypad-key').forEach(btn => {
+    btn.onclick = () => {
+      const key = btn.dataset.key;
+      if (key === 'cam') { $('addExpensePhoto').click(); return; }
+      if (key === 'del') { addExpenseState.cents = addExpenseState.cents.slice(0, -1); }
+      else if (addExpenseState.cents.length < 7) {
+        if (!addExpenseState.cents && key === '0') { /* leading zero, ignore */ }
+        else addExpenseState.cents += key;
+      }
+      paintAddExpenseAmount();
+    };
+  });
+
+  $('addExpensePhoto').onchange = e => {
+    window.pendingReceiptPhoto = e.target.files[0] || null;
+    $('addExpensePhotoChip').hidden = !window.pendingReceiptPhoto;
+  };
+
+  $('addExpenseRepeatToggle').onclick = () => {
+    addExpenseState.repeat = !addExpenseState.repeat;
+    paintAddExpenseRepeat();
+  };
+  $('repeatSpans').querySelectorAll('.repeatspan').forEach(btn => {
+    btn.onclick = () => { addExpenseState.durationMode = btn.dataset.span; paintAddExpenseRepeat(); };
+  });
+  $('repeatUntilMonth').onchange = () => { addExpenseState.untilMonth = $('repeatUntilMonth').value; };
+
+  $('addExpenseNoteToggle').onclick = () => {
+    addExpenseState.noteOpen = true;
+    $('addExpenseNote').hidden = false;
+    $('addExpenseNoteToggle').hidden = true;
+    $('addExpenseNote').focus();
+  };
+
+  $('addExpenseSave').onclick = async () => {
+    const amount = addExpenseAmountValue();
+    if (amount <= 0) return;
+
+    try {
+      await buildAndSaveExpense({
+        amount,
+        date: today(),
+        categoryId: addExpenseState.categoryId,
+        storeName: '',
+        note: $('addExpenseNote').value,
+        photo: window.pendingReceiptPhoto,
+        repeat: addExpenseState.repeat ? {
+          durationMode: addExpenseState.durationMode,
+          durationMonths: 12,
+          untilMonth: addExpenseState.untilMonth || null
+        } : null
+      });
+    } catch (err) {
+      toast(err.message);
+      return;
+    }
+
+    closeAddExpenseSheet();
+    toast('Expense saved.');
+  };
 }
 
 /* ---------- floating panel positioning ----------
@@ -662,6 +886,31 @@ function initCustomControls() {
   customControlsObserver.observe(document.body, { childList: true, subtree: true });
 }
 
+/* ---------- category icons ----------
+   Real stroke SVGs (24x24, matching every other icon in the app)
+   keyed by a loose match on the category name, so seeded and
+   custom categories alike get a sensible glyph with no emoji
+   anywhere in the shipped UI. Falls back to a generic tag icon. */
+
+const CATEGORY_ICONS = [
+  [/grocer|food|market/i, '<path d="M4 4h1.5l1.09 9.36A2 2 0 0 0 8.58 15H17a2 2 0 0 0 1.98-1.72L20 8H6"/><circle cx="9" cy="19.5" r="1.25"/><circle cx="16.5" cy="19.5" r="1.25"/>'],
+  [/transport|fuel|petrol|gas station|car|bus|taxi/i, '<path d="M4.5 16.5V11l1.8-4.2A2 2 0 0 1 8.1 5.5h7.8a2 2 0 0 1 1.8 1.3l1.8 4.2v5.5"/><path d="M4.5 16.5h15M6.5 16.5V19M17.5 16.5V19"/><circle cx="7.5" cy="13.5" r="1"/><circle cx="16.5" cy="13.5" r="1"/>'],
+  [/health|pharmac|doctor|medical/i, '<circle cx="12" cy="12" r="8.25"/><path d="M12 8.25v7.5M8.25 12h7.5"/>'],
+  [/cloth|apparel|fashion/i, '<path d="M9 4.5 6 6.75 4.5 9.75 7.5 11.25V19.5h9V11.25l3-1.5L18 6.75 15 4.5a3 3 0 0 1-6 0Z"/>'],
+  [/eating out|restaurant|dining|cafe|coffee/i, '<path d="M6 3v6a2.5 2.5 0 0 0 5 0V3M8.5 9v12M17 3v18M17 3c2 0 3 1.5 3 4s-1 4-3 4"/>'],
+  [/kid|child|school/i, '<path d="M12 3 3 7l9 4 9-4-9-4Z"/><path d="M6.5 9.5V15c0 1.5 2.5 3 5.5 3s5.5-1.5 5.5-3V9.5"/>'],
+  [/entertain|movie|cinema|game/i, '<rect x="3.5" y="6" width="17" height="12" rx="2"/><path d="M9.5 9.5v5l4.5-2.5-4.5-2.5Z"/>'],
+  [/bill|utilit|electric|water|internet|phone|rent|insurance|subscription/i, '<path d="M6 3.75h12a1.5 1.5 0 0 1 1.5 1.5v15l-2.5-1.5-2.5 1.5-2.5-1.5-2.5 1.5-2.5-1.5-2.5 1.5v-15A1.5 1.5 0 0 1 6 3.75Z"/><path d="M8 8.25h8M8 12h8M8 15.75h4"/>'],
+  [/loan|bank|mortgage/i, '<path d="M4 10.5 12 5l8 5.5"/><path d="M5.5 10.5V19h13v-8.5"/><path d="M9.5 19v-5.5h5V19"/>'],
+  [/household|home|furniture/i, '<path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/>']
+];
+
+function categoryIconSvg(name) {
+  const match = CATEGORY_ICONS.find(([pattern]) => pattern.test(name || ''));
+  const inner = match ? match[1] : '<path d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z"/><path d="M6 6h.008v.008H6V6Z"/>';
+  return `<svg viewBox="0 0 24 24" aria-hidden="true">${inner}</svg>`;
+}
+
 /* ---------- barcode scanning ----------
    prices.js is a classic script, not a Vite module, so it can't
    `import` this npm package itself — it calls these two globals
@@ -721,3 +970,14 @@ window.TillRollBills = {
   parseBillQrPayload
 };
 window.scanBillDocument = scanBillDocument;
+window.TillRollRecurring = {
+  monthIndex,
+  monthFromIndex,
+  isRecurringActiveInMonth,
+  monthsToMaterialize,
+  durationLabel
+};
+window.openBottomSheet = openBottomSheet;
+window.closeBottomSheet = closeBottomSheet;
+window.openAddExpenseSheet = openAddExpenseSheet;
+window.categoryIconSvg = categoryIconSvg;

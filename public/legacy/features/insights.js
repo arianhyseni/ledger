@@ -28,7 +28,11 @@ async function renderInsights() {
   const cur       = expenses.filter(e => e.month === state.month);
   const spent     = cur.reduce((s, e) => s + e.amount, 0);
   const income    = incomeOf[state.month] || 0;
-  const debt      = debtOf[state.month] || 0;
+  // Once the one-time debt migration turns a month's Loan / debt figure
+  // into a recurring expense, its generated row is already inside
+  // `spent` — subtracting the legacy `debt` field too would count the
+  // same loan payment twice (see expenses.js's debtAlreadyCounted()).
+  const debt      = (await debtAlreadyCounted()) ? 0 : (debtOf[state.month] || 0);
   const elapsed   = Math.max(daysElapsed(state.month), 1);
   const total     = daysInMonth(state.month);
   const avgDay    = spent / elapsed;
@@ -83,6 +87,7 @@ async function renderInsights() {
   }));
 
   $('insightsBody').innerHTML = [
+    groupSplitCard(cur, cats),
     headlineCard(income, debt, spent, projected, avgDay, target),
     breakdownCard(breakdown, spent),
     trendCard(trend),
@@ -92,6 +97,75 @@ async function renderInsights() {
       daysLeft: Math.max(total - elapsed, 0)
     }))
   ].join('');
+}
+
+/* ---------- needs vs wants (50/30/20) ---------- */
+
+const GROUP_TARGET = { fixed: 50, variable: 30, wants: 20 };
+const GROUP_LABEL  = { fixed: 'Fixed needs', variable: 'Variable needs', wants: 'Wants' };
+
+function groupSplitCard(monthExpenses, cats) {
+  const spent = monthExpenses.reduce((s, e) => s + e.amount, 0);
+  if (!spent) return '';
+
+  const groupOfCat = Object.fromEntries(cats.map(c => [c.id, c.group || 'variable']));
+  const totals = { fixed: 0, variable: 0, wants: 0 };
+  const byCat = {};
+  for (const e of monthExpenses) {
+    const g = groupOfCat[e.category_id] || 'variable';
+    totals[g] += e.amount;
+    byCat[e.category_id] = (byCat[e.category_id] || 0) + e.amount;
+  }
+
+  const share = g => Math.round(totals[g] / spent * 100);
+  const shares = { fixed: share('fixed'), variable: share('variable'), wants: share('wants') };
+  const needsPct = shares.fixed + shares.variable;
+
+  const catName = Object.fromEntries(cats.map(c => [c.id, c.name]));
+  const groups = ['fixed', 'variable', 'wants'].map(g => {
+    const rows = cats
+      .filter(c => (c.group || 'variable') === g && byCat[c.id])
+      .sort((a, b) => byCat[b.id] - byCat[a.id])
+      .map(c => `<div class="barrow-mini"><span>${escapeHtml(c.name)}</span><span class="num">${fromCents(byCat[c.id])}</span></div>`)
+      .join('');
+    return `
+      <div class="group-breakdown">
+        <div class="group-breakdown-head">
+          <span class="segbar-dot segbar-${g}"></span>
+          <span>${GROUP_LABEL[g]}</span>
+          <span class="dim">${shares[g]}% · target ${GROUP_TARGET[g]}%</span>
+          <span class="num">${fromCents(totals[g])}</span>
+        </div>
+        ${rows}
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="card">
+      <span class="eyebrow">${escapeHtml(monthLabel(state.month))} · needs vs wants</span>
+      <div class="segbar" role="img" aria-label="${shares.fixed}% fixed needs, ${shares.variable}% variable needs, ${shares.wants}% wants">
+        <div class="segbar-seg segbar-fixed" style="width:${shares.fixed}%">${shares.fixed > 8 ? shares.fixed + '%' : ''}</div>
+        <div class="segbar-seg segbar-variable" style="width:${shares.variable}%">${shares.variable > 8 ? shares.variable + '%' : ''}</div>
+        <div class="segbar-seg segbar-wants" style="width:${shares.wants}%">${shares.wants > 8 ? shares.wants + '%' : ''}</div>
+      </div>
+      <div class="segbar-ticks">
+        <span style="left:50%"></span><span style="left:80%"></span>
+      </div>
+      <p class="hint">Dashes mark the 50/30/20 target.</p>
+      <div class="row group-tiles">
+        <div class="group-tile group-tile-needs">
+          <span class="eyebrow">Needs</span>
+          <div class="amt">${needsPct}%</div>
+          <span class="dim">${fromCents(totals.fixed + totals.variable)}</span>
+        </div>
+        <div class="group-tile group-tile-wants">
+          <span class="eyebrow">Wants</span>
+          <div class="amt">${shares.wants}%</div>
+          <span class="dim">${fromCents(totals.wants)}</span>
+        </div>
+      </div>
+      ${groups}
+    </div>`;
 }
 
 /* ---------- cards ---------- */

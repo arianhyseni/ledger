@@ -17,16 +17,17 @@
 
 // Columns that exist on the server, per table.
 const REMOTE_FIELDS = {
-  categories:    ['id', 'name', 'type', 'monthly_budget'],
-  stores:        ['id', 'name', 'location', 'note'],
-  products:      ['id', 'name', 'category_id', 'unit', 'barcode', 'note'],
-  bill_accounts: ['id', 'name', 'utility_type', 'account_reference', 'category_id', 'recurrence', 'default_amount', 'due_day', 'next_due_date', 'note', 'active'],
-  expenses:      ['id', 'date', 'month', 'amount', 'category_id', 'store_id', 'note', 'has_receipt'],
-  bills:         ['id', 'account_id', 'due_date', 'month', 'amount', 'usage', 'usage_unit', 'status', 'paid_date', 'expense_id', 'note', 'has_document'],
-  prices:        ['id', 'product_id', 'store_id', 'price', 'date', 'is_promo'],
-  expense_items: ['id', 'expense_id', 'product_id', 'qty', 'unit_price'],
-  income:        ['id', 'month', 'amount', 'debt', 'source', 'note'],
-  settings:      ['key', 'value']
+  categories:          ['id', 'name', 'type', 'monthly_budget', 'group'],
+  stores:              ['id', 'name', 'location', 'note'],
+  products:            ['id', 'name', 'category_id', 'unit', 'barcode', 'note'],
+  bill_accounts:       ['id', 'name', 'utility_type', 'account_reference', 'category_id', 'recurrence', 'default_amount', 'due_day', 'next_due_date', 'note', 'active'],
+  recurring_expenses:  ['id', 'name', 'category_id', 'amount', 'start_month', 'duration_mode', 'duration_months', 'until_month', 'active', 'stopped_from_month', 'note'],
+  expenses:            ['id', 'date', 'month', 'amount', 'category_id', 'store_id', 'note', 'has_receipt', 'recurring_expense_id'],
+  bills:               ['id', 'account_id', 'due_date', 'month', 'amount', 'usage', 'usage_unit', 'status', 'paid_date', 'expense_id', 'note', 'has_document'],
+  prices:              ['id', 'product_id', 'store_id', 'price', 'date', 'is_promo'],
+  expense_items:       ['id', 'expense_id', 'product_id', 'qty', 'unit_price'],
+  income:              ['id', 'month', 'amount', 'debt', 'source', 'note'],
+  settings:            ['key', 'value']
 };
 
 // settings has no deleted column — it is a key/value store.
@@ -98,13 +99,22 @@ async function pushAll() {
         ? { onConflict: 'user_id,key' }
         : undefined;
 
-    const { error } = await sb.from(table).upsert(payload, options);
+    // Ask Postgres for the row back rather than trusting the client's own
+    // guess at updated_at: bill_accounts_touch_updated_at (and its sibling
+    // triggers) overwrite it server-side on an UPDATE, so the value this
+    // device sent is only ever right for a brand-new INSERT. Comparisons
+    // in applyRemote() and the pull cursor above both need the real one.
+    const key = LOCAL_KEY(table);
+    const { data: saved, error } = await sb.from(table).upsert(payload, options)
+      .select(key + ', updated_at');
     if (error) throw new Error(table + ': ' + error.message);
 
-    const key = LOCAL_KEY(table);
+    const savedAt = Object.fromEntries((saved || []).map(r => [r[key], r.updated_at]));
     await db.transaction('rw', db[table], async () => {
       for (const row of dirty) {
-        await db[table].update(row[key], { dirty: 0 });
+        const patch = { dirty: 0 };
+        if (savedAt[row[key]]) patch.updated_at = savedAt[row[key]];
+        await db[table].update(row[key], patch);
       }
     });
   }
@@ -136,7 +146,17 @@ async function pullAll() {
     if (!data || !data.length) continue;
 
     await applyRemote(table, data);
-    await setMeta('pull:' + table, data[data.length - 1].updated_at);
+
+    // Two rows can legitimately share the same updated_at instant (a
+    // batch upsert stamps them together), and a strict ">" cursor would
+    // silently and permanently skip whichever of them lands on the far
+    // side of a later page boundary. Stepping the cursor back by one
+    // microsecond re-fetches that instant next time; applyRemote's own
+    // per-row "already have this" check makes the tiny re-fetch a no-op.
+    const last = data[data.length - 1].updated_at;
+    const lastMs = Date.parse(last);
+    const cursor = Number.isFinite(lastMs) ? new Date(lastMs - 1).toISOString() : last;
+    await setMeta('pull:' + table, cursor);
   }
 }
 
@@ -150,8 +170,12 @@ async function applyRemote(table, rows) {
       // Local edits that have not been pushed take precedence.
       if (local && local.dirty) continue;
 
-      // Older than what we already hold — ignore.
-      if (local && local.updated_at && local.updated_at > remote.updated_at) continue;
+      // Older than what we already hold — ignore. Both sides are
+      // compared as real instants, not as raw strings: the server
+      // returns "timestamptz" without milliseconds while the client
+      // writes Date#toISOString() with them, and those two formats do
+      // not always sort the same way as plain strings that ">" needs.
+      if (local && local.updated_at && Date.parse(local.updated_at) > Date.parse(remote.updated_at)) continue;
 
       const row = { dirty: 0, updated_at: remote.updated_at };
       for (const f of REMOTE_FIELDS[table]) row[f] = remote[f];
@@ -162,6 +186,8 @@ async function applyRemote(table, rows) {
   });
 
   if (table === 'income') await dedupeIncome();
+  if (table === 'categories') await dedupeByName('categories');
+  if (table === 'stores') await dedupeByName('stores');
 }
 
 // One income row per month. A merge on the server can leave a
@@ -175,6 +201,47 @@ async function dedupeIncome() {
     if (list.length < 2) continue;
     list.sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
     for (const extra of list.slice(1)) await db.income.delete(extra.id);
+  }
+}
+
+// Categories and stores are seeded (or freely typed) client-side with a
+// fresh uuid each time, so two devices that both create the same-named
+// row before ever syncing with each other end up with two rows that
+// differ only by id — the account keeps both forever, and every picker
+// built from this table shows the name twice. Keep the oldest surviving
+// row (whatever other rows already point at it stays valid) and fold
+// every later duplicate's references onto it before deleting them.
+async function dedupeByName(table) {
+  const rows = (await db[table].toArray()).filter(r => !r.deleted);
+  const byName = {};
+  for (const r of rows) (byName[r.name.trim().toLowerCase()] ||= []).push(r);
+
+  for (const list of Object.values(byName)) {
+    if (list.length < 2) continue;
+    list.sort((a, b) => (a.updated_at || '').localeCompare(b.updated_at || ''));
+    const [keep, ...extras] = list;
+    for (const extra of extras) {
+      await relinkReferences(table, extra.id, keep.id);
+      await db[table].put(stamp({ ...extra, deleted: 1 }));
+    }
+  }
+}
+
+// Foreign-key columns that point at a categories/stores row, per table.
+const REFERRERS = {
+  categories: [
+    ['expenses', 'category_id'], ['products', 'category_id'],
+    ['bill_accounts', 'category_id'], ['recurring_expenses', 'category_id']
+  ],
+  stores:     [['expenses', 'store_id'], ['prices', 'store_id']]
+};
+
+async function relinkReferences(table, fromId, toId) {
+  for (const [refTable, field] of REFERRERS[table] || []) {
+    const referring = await db[refTable].where(field).equals(fromId).toArray();
+    for (const row of referring) {
+      await db[refTable].put(stamp({ ...row, [field]: toId }));
+    }
   }
 }
 

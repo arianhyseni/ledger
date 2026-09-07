@@ -247,6 +247,7 @@ function showApp(visible) {
   $('screen-auth').hidden = visible;
   $('appMain').hidden = !visible;
   $('tabs').hidden = !visible;
+  $('fabAdd').hidden = !visible;
   $('topbar').hidden = !visible;
   $('topSignOut').hidden = !(visible && CLOUD_ENABLED);
 }
